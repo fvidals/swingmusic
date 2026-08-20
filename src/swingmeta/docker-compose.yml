@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # Servidor principal do Swing Music
+  swingmusic:
+    image: ghcr.io/swingmx/swingmusic:latest
+    container_name: swingmusic
+    restart: unless-stopped
+    ports:
+      - "1970:1970"
+    volumes:
+      - ./config:/config
+      - ./music:/music
+    environment:
+      - SWINGMUSIC_IN_DOCKER=1
+
+  # Companheiro SwingMeta (Gerenciador de Fotos e Metadados)
+  swingmeta:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: swingmeta
+    restart: unless-stopped
+    ports:
+      - "1971:1971"
+    volumes:
+      - ./config:/config    # Mesmo volume /config do SwingMusic (banco e imagens)
+      - ./music:/music      # Mesmo volume /music (edição de tags ID3)
+    environment:
+      - SWING_CONFIG_DIR=/config
+      - SWING_MUSIC_DIR=/music
+      - SWINGMETA_PORT=1971
+      # Opcional: Spotify Developer API (se desejar catálogo do Spotify)
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
+    depends_on:
+      - swingmusic

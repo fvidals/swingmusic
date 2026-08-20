@@ -1,0 +1,174 @@
+export interface Artist {
+  artisthash: string;
+  name: string;
+  album_count: number;
+  track_count: number;
+  duration: number;
+  has_image: boolean;
+  has_bio: boolean;
+  bio?: string;
+  colors?: string[];
+  blurhash?: string;
+  info?: Record<string, any>;
+  extra?: Record<string, any>;
+  image?: string | null;
+  image_lg?: string | null;
+}
+
+export interface ArtistDetail extends Artist {
+  tracks: Track[];
+  albums: AlbumSummary[];
+}
+
+export interface AlbumSummary {
+  albumhash: string;
+  title: string;
+  date?: number;
+  cover?: string;
+}
+
+export interface Track {
+  id: number;
+  title: string;
+  artists: any[];
+  albumartists?: any[];
+  album: string;
+  albumhash: string;
+  duration: number;
+  track?: number;
+  disc?: number;
+  date?: number;
+  genres?: string;
+  bitrate?: number;
+  filepath: string;
+  last_mod?: number;
+}
+
+export interface FileTags {
+  filepath: string;
+  filename: string;
+  format: string;
+  title: string;
+  artist: string;
+  album: string;
+  albumartist: string;
+  year: string;
+  tracknumber: string;
+  discnumber: string;
+  genre: string;
+}
+
+export interface OnlineImageCandidate {
+  provider: 'Deezer' | 'Spotify' | 'iTunes' | 'MusicBrainz';
+  name?: string;
+  image_url?: string;
+  thumbnail_url?: string;
+  nb_fan?: number;
+  nb_album?: number;
+  genres?: string[];
+  popularity?: number;
+  link?: string;
+}
+
+export interface M3UPlaylist {
+  name: string;
+  filename: string;
+  filepath: string;
+  relative_path: string;
+  total_tracks: number;
+  matched_tracks: number;
+  match_rate: number;
+  is_created_in_swing: boolean;
+  swing_playlist?: {
+    id: number;
+    name: string;
+    last_updated: number;
+    track_count: number;
+    trackhashes: string[];
+  };
+}
+
+export interface M3UTrackItem {
+  raw_path: string;
+  resolved_path: string;
+  filename: string;
+  title: string;
+  duration: number;
+  matched: boolean;
+  track_id?: number | null;
+  trackhash?: string | null;
+  db_title?: string;
+  db_artists?: string;
+  db_album?: string;
+  db_filepath?: string;
+  db_duration?: number;
+}
+
+export interface M3UDetail {
+  name: string;
+  filename: string;
+  filepath: string;
+  total_tracks: number;
+  matched_count: number;
+  tracks: M3UTrackItem[];
+  is_created: boolean;
+  swing_playlist?: any;
+}
+
+export interface SwingUser {
+  id: number;
+  username: string;
+  image?: string;
+  avatar_url?: string | null;
+  has_custom_avatar: boolean;
+  roles: string[];
+  is_admin: boolean;
+  is_guest: boolean;
+  firstname?: string;
+  lastname?: string;
+  email?: string;
+  extra?: Record<string, any>;
+}
+
+export interface FallbackAsset {
+  name: string;
+  label: string;
+  type: string;
+  exists: boolean;
+  size_bytes: number;
+  url?: string | null;
+  filepath: string;
+}
+
+export interface ClientInfo {
+  exists: boolean;
+  version: string;
+  path: string;
+  total_files: number;
+}
+
+export interface SystemStatus {
+  status: string;
+  version: string;
+  paths: {
+    config_dir: string;
+    swingmusic_db: string;
+    userdata_db: string;
+    images_dir: string;
+    music_dir: string;
+  };
+  mounts: {
+    swingmusic_db_exists: boolean;
+    userdata_db_exists: boolean;
+    images_dir_exists: boolean;
+    music_dir_exists: boolean;
+  };
+  stats: {
+    track_count: number;
+    artist_image_count: number;
+  };
+  spotify: {
+    configured: boolean;
+    client_id: string;
+  };
+}
