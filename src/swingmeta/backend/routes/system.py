@@ -25,11 +25,32 @@ def get_discovered_mount_points() -> List[dict[str, Any]]:
     music_str = str(settings.MUSIC_DIR)
     discovered[music_str] = {
         "path": music_str,
-        "label": "Diretório de Música Padrão (/music)",
+        "label": "Diretório /music Padrão",
         "source": "config",
+        "is_swing_root": False,
     }
 
-    # 2. Extract from track table in database
+    # 2. Configured rootDirs in SwingMusic's settings.json
+    swing_settings_path = settings.resolved_config_dir / "settings.json"
+    if swing_settings_path.exists():
+        try:
+            import json
+            with open(swing_settings_path, "r", encoding="utf-8") as f:
+                sdata = json.load(f)
+                root_dirs = sdata.get("rootDirs", [])
+                for r in root_dirs:
+                    if r and isinstance(r, str):
+                        r_clean = r.rstrip("/") if r != "/" else "/"
+                        discovered[r_clean] = {
+                            "path": r_clean,
+                            "label": f"Fonte de Áudio do SwingMusic ({r_clean})",
+                            "source": "swingmusic_config",
+                            "is_swing_root": True,
+                        }
+        except Exception as e:
+            log.warning(f"Erro ao ler settings.json do SwingMusic: {e}")
+
+    # 3. Extract from track table in database
     if settings.swingmusic_db_path.exists():
         try:
             with swing_db() as conn:
@@ -106,10 +127,11 @@ def get_discovered_mount_points() -> List[dict[str, Any]]:
             "writable": writable,
             "track_count": track_cnt,
             "source": info.get("source", "custom"),
+            "is_swing_root": info.get("is_swing_root", False),
         })
 
-    # Sort so that folders with tracks come first, then existing ones
-    results.sort(key=lambda x: (x["track_count"] > 0, x["exists"]), reverse=True)
+    # Sort so that SwingMusic roots & folders with tracks come first
+    results.sort(key=lambda x: (x["is_swing_root"], x["track_count"] > 0, x["exists"]), reverse=True)
     return results
 
 

@@ -190,27 +190,82 @@ class PlaylistService:
         playlists = {}
         with user_db() as conn:
             try:
-                cursor = conn.execute("""
-                    SELECT id, name, last_updated, image, trackhashes, settings
-                    FROM playlist;
-                """)
+                cursor = conn.execute("SELECT id, name, last_updated, image, trackhashes, settings FROM playlist;")
                 for row in cursor.fetchall():
                     name = row["name"]
                     try:
                         hashes = json.loads(row["trackhashes"]) if row["trackhashes"] else []
                     except Exception:
                         hashes = []
+                    
+                    img_name = row["image"]
+                    has_img = bool(img_name and (settings.playlist_images_dir / img_name).exists())
+                    
                     playlists[name] = {
                         "id": row["id"],
                         "name": name,
                         "last_updated": row["last_updated"],
                         "track_count": len(hashes),
                         "trackhashes": hashes,
+                        "image": img_name,
+                        "has_image": has_img,
+                        "image_url": f"/api/images/playlist/{img_name}" if has_img else None,
                     }
             except Exception as e:
-                log.warning(f"Erro ao ler playlists do userdata.db: {e}")
+                log.warning(f"Erro ao ler playlists do banco: {e}")
 
         return playlists
+
+    @classmethod
+    def upload_playlist_cover(cls, playlist_id: int, image_bytes: bytes) -> Dict[str, Any]:
+        """
+        Uploads and crops custom cover for a SwingMusic playlist.
+        Saves as WebP in images/playlists/ and updates playlist table.
+        """
+        import io
+        from PIL import Image
+
+        try:
+            img = Image.open(io.BytesIO(image_bytes))
+        except Exception as e:
+            return {"success": False, "error": f"Formato de imagem inválido: {e}"}
+
+        # Convert to RGB
+        if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+            bg = Image.new("RGBA", img.size, (255, 255, 255, 0))
+            bg.paste(img, (0, 0), img.convert("RGBA"))
+            img = bg
+        else:
+            img = img.convert("RGB")
+
+        # 1:1 center crop
+        width, height = img.size
+        if width != height:
+            min_dim = min(width, height)
+            left = (width - min_dim) // 2
+            top = (height - min_dim) // 2
+            img = img.crop((left, top, left + min_dim, top + min_dim))
+
+        # Resize to 512x512
+        img_512 = img.resize((512, 512), Image.Resampling.LANCZOS)
+        filename = f"pl_{playlist_id}_{int(time.time())}.webp"
+        save_path = settings.playlist_images_dir / filename
+        img_512.save(save_path, format="webp", quality=90)
+
+        # Update playlist table
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        with user_db() as conn:
+            conn.execute(
+                "UPDATE playlist SET image = ?, last_updated = ? WHERE id = ?;",
+                (filename, now, playlist_id),
+            )
+            conn.commit()
+
+        return {
+            "success": True,
+            "image": filename,
+            "image_url": f"/api/images/playlist/{filename}",
+        }
 
     @classmethod
     def list_all_m3u_playlists(cls) -> List[Dict[str, Any]]:

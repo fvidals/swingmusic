@@ -129,5 +129,11 @@ class Settings:
         p.mkdir(parents=True, exist_ok=True)
         return p
 
+    @property
+    def playlist_images_dir(self) -> Path:
+        p = self.images_dir / "playlists"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
 
 settings = Settings()

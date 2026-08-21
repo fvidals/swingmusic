@@ -170,22 +170,33 @@ onMounted(() => {
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center justify-between">
-              <span class="font-semibold text-sm text-white font-mono">{{ mount.path }}</span>
+              <div class="flex items-center space-x-2">
+                <span class="font-semibold text-sm text-white font-mono">{{ mount.path }}</span>
+                <span
+                  v-if="mount.is_swing_root"
+                  class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent/20 text-accent border border-accent/30 uppercase tracking-wide"
+                >
+                  Fonte SwingMusic
+                </span>
+              </div>
               <span
                 class="px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center space-x-1"
-                :class="mount.exists ? (mount.writable ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20') : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'"
+                :class="mount.exists ? (mount.writable ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20') : 'bg-red-500/10 text-red-400 border border-red-500/20'"
               >
                 <CheckCircle2 v-if="mount.exists" class="w-3 h-3" />
                 <AlertTriangle v-else class="w-3 h-3" />
-                <span>{{ mount.exists ? (mount.writable ? 'Leitura & Escrita' : 'Somente Leitura') : 'Não montado' }}</span>
+                <span>{{ mount.exists ? (mount.writable ? 'Montado (Leitura & Escrita)' : 'Somente Leitura') : 'Não Montado no Container' }}</span>
               </span>
             </div>
             <p class="text-xs text-gray-400 truncate mt-1">{{ mount.label }}</p>
             <div class="flex items-center space-x-2 text-xs text-gray-500 mt-1">
               <span v-if="mount.track_count > 0" class="text-accent font-semibold">
-                {{ mount.track_count }} faixas associadas
+                {{ mount.track_count }} faixas no catálogo
               </span>
-              <span v-else class="text-gray-500">Nenhuma faixa associada</span>
+              <span v-else class="text-gray-500">Nenhuma faixa encontrada</span>
+              <span v-if="!mount.exists && mount.is_swing_root" class="text-red-400 font-medium">
+                • Adicione este volume ao docker-compose do SwingMeta
+              </span>
             </div>
           </div>
         </div>

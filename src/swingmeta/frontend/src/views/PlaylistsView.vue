@@ -12,6 +12,8 @@ import {
   Loader2,
   FolderTree,
   Check,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-vue-next';
 import { api } from '../api/client';
 import type { M3UPlaylist } from '../types';
@@ -24,8 +26,11 @@ const filterStatus = ref<'all' | 'created' | 'not_created'>('all');
 const selectedM3UPath = ref<string | null>(null);
 
 const activeCreatingPath = ref<string | null>(null);
+const uploadingPlaylistId = ref<number | null>(null);
 const feedbackMsg = ref('');
 const errorMsg = ref('');
+
+const playlistFileInputs = ref<{ [key: number]: HTMLInputElement | null }>({});
 
 async function loadPlaylists() {
   isLoading.value = true;
@@ -49,6 +54,7 @@ async function quickCreatePlaylist(p: M3UPlaylist) {
     const res = await api.createPlaylist(p.filepath, p.name);
     feedbackMsg.value = `Playlist "${p.name}" ${res.action === 'updated' ? 'sincronizada' : 'criada'} com sucesso no SwingMusic! (${res.imported_tracks} músicas)`;
     p.is_created_in_swing = true;
+    await loadPlaylists();
     setTimeout(() => {
       feedbackMsg.value = '';
     }, 4000);
@@ -74,6 +80,37 @@ async function removeSwingPlaylist(p: M3UPlaylist) {
   } catch (err: any) {
     errorMsg.value = 'Erro ao remover playlist.';
   }
+}
+
+async function handleCoverUpload(p: M3UPlaylist, e: Event) {
+  const target = e.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file || !p.swing_playlist?.id) return;
+
+  uploadingPlaylistId.value = p.swing_playlist.id;
+  errorMsg.value = '';
+  feedbackMsg.value = '';
+
+  try {
+    const res = await api.uploadPlaylistCover(p.swing_playlist.id, file);
+    if (p.swing_playlist) {
+      p.swing_playlist.image = res.image;
+      p.swing_playlist.has_image = true;
+      p.swing_playlist.image_url = `${res.image_url}?t=${Date.now()}`;
+    }
+    feedbackMsg.value = `Capa da playlist "${p.name}" atualizada com sucesso!`;
+    setTimeout(() => {
+      feedbackMsg.value = '';
+    }, 4000);
+  } catch (err: any) {
+    errorMsg.value = err.message || 'Erro ao enviar capa da playlist.';
+  } finally {
+    uploadingPlaylistId.value = null;
+  }
+}
+
+function triggerCoverUpload(playlistId: number) {
+  playlistFileInputs.value[playlistId]?.click();
 }
 
 function filteredPlaylists(): M3UPlaylist[] {
@@ -105,13 +142,13 @@ onMounted(() => {
       <div>
         <div class="flex items-center space-x-2 text-accent text-sm font-medium mb-1">
           <ListMusic class="w-4 h-4" />
-          <span>Importador de Playlists (.m3u)</span>
+          <span>Importador & Capas de Playlists</span>
         </div>
         <h1 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-          Playlists M3U → SwingMusic
+          Playlists M3U & Capas
         </h1>
         <p class="text-sm text-gray-400 mt-1">
-          Detecta arquivos <code>.m3u</code> e <code>.m3u8</code> na pasta <code>Playlists</code> ou na raiz de músicas e cria a lista equivalente no SwingMusic.
+          Detecta arquivos <code>.m3u</code> nas pastas de música, sincroniza com o SwingMusic e permite upload de capas personalizadas.
         </p>
       </div>
 
@@ -186,11 +223,47 @@ onMounted(() => {
         :key="p.filepath"
         class="bg-surface hover:bg-surface-elevated/80 rounded-2xl p-5 border border-white/5 hover:border-white/20 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm"
       >
-        <!-- Left: Info -->
+        <!-- Left: Cover Artwork & Info -->
         <div class="flex items-start space-x-4 min-w-0">
-          <div class="w-12 h-12 rounded-2xl bg-surface-elevated flex items-center justify-center flex-shrink-0 text-accent border border-white/5">
-            <ListMusic class="w-6 h-6" />
+          <!-- Cover Thumbnail -->
+          <div class="relative group/cover flex-shrink-0">
+            <div
+              class="w-14 h-14 rounded-2xl overflow-hidden bg-surface-elevated flex items-center justify-center text-accent border border-white/10 shadow-inner"
+            >
+              <img
+                v-if="p.swing_playlist?.image_url"
+                :src="p.swing_playlist.image_url"
+                :alt="p.name"
+                class="w-full h-full object-cover"
+              />
+              <ListMusic v-else class="w-7 h-7 text-gray-500" />
+            </div>
+
+            <!-- Upload Cover Trigger Overlay (if created in swingmusic) -->
+            <button
+              v-if="p.is_created_in_swing && p.swing_playlist?.id"
+              @click="triggerCoverUpload(p.swing_playlist.id)"
+              :disabled="uploadingPlaylistId === p.swing_playlist.id"
+              class="absolute inset-0 bg-black/70 opacity-0 group-hover/cover:opacity-100 rounded-2xl flex flex-col items-center justify-center text-white transition-opacity cursor-pointer"
+              title="Clique para alterar a capa desta playlist"
+            >
+              <Loader2 v-if="uploadingPlaylistId === p.swing_playlist.id" class="w-4 h-4 animate-spin text-accent" />
+              <Upload v-else class="w-4 h-4 text-accent mb-0.5" />
+              <span class="text-[9px] font-bold">Capa</span>
+            </button>
+
+            <!-- Hidden File Input for this playlist -->
+            <input
+              v-if="p.swing_playlist?.id"
+              :ref="el => { playlistFileInputs[p.swing_playlist!.id] = el as HTMLInputElement }"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="handleCoverUpload(p, $event)"
+            />
           </div>
+
+          <!-- Info Text -->
           <div class="min-w-0">
             <div class="flex items-center space-x-2 flex-wrap">
               <h3 class="font-bold text-base text-white truncate">{{ p.name }}</h3>
@@ -200,11 +273,17 @@ onMounted(() => {
               >
                 {{ p.is_created_in_swing ? 'No SwingMusic' : 'Pendente' }}
               </span>
+              <span
+                v-if="p.swing_playlist?.image"
+                class="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20"
+              >
+                Com Capa
+              </span>
             </div>
 
             <p class="text-xs text-gray-400 font-mono mt-0.5 truncate flex items-center space-x-1">
-              <FolderTree class="w-3 h-3 text-gray-500 inline" />
-              <span>{{ p.relative_path }}</span>
+              <FolderTree class="w-3 h-3 text-gray-500 inline flex-shrink-0" />
+              <span class="truncate">{{ p.relative_path }}</span>
             </p>
 
             <!-- Match rate bar -->
@@ -225,6 +304,18 @@ onMounted(() => {
 
         <!-- Right: Actions -->
         <div class="flex items-center space-x-2 self-end md:self-center flex-shrink-0">
+          <!-- Upload Cover Action Button -->
+          <button
+            v-if="p.is_created_in_swing && p.swing_playlist?.id"
+            @click="triggerCoverUpload(p.swing_playlist.id)"
+            :disabled="uploadingPlaylistId === p.swing_playlist.id"
+            class="px-3 py-2 bg-white/5 hover:bg-white/15 text-white text-xs font-semibold rounded-xl border border-white/10 flex items-center space-x-1.5 transition-all"
+            title="Fazer upload de capa para a playlist"
+          >
+            <Upload class="w-3.5 h-3.5 text-accent" />
+            <span>{{ uploadingPlaylistId === p.swing_playlist.id ? 'Enviando...' : 'Capa' }}</span>
+          </button>
+
           <button
             @click="selectedM3UPath = p.filepath"
             class="px-3.5 py-2 bg-white/5 hover:bg-white/15 text-white text-xs font-semibold rounded-xl border border-white/10 flex items-center space-x-1.5 transition-all"

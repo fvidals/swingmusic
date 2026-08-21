@@ -65,3 +65,24 @@ def delete_swing_playlist(playlist_id: int):
         conn.execute("DELETE FROM playlist WHERE id = ?;", (playlist_id,))
         conn.commit()
     return jsonify({"success": True})
+
+
+@playlists_bp.route("/<int:playlist_id>/cover", methods=["POST"])
+def upload_playlist_cover(playlist_id: int):
+    """
+    Uploads custom cover image for a SwingMusic playlist.
+    """
+    if "image" not in request.files:
+        return jsonify({"error": "Nenhum arquivo de imagem enviado"}), 400
+
+    file = request.files["image"]
+    if not file.filename:
+        return jsonify({"error": "Arquivo vazio"}), 400
+
+    image_bytes = file.read()
+    result = PlaylistService.upload_playlist_cover(playlist_id, image_bytes)
+    if not result.get("success"):
+        return jsonify(result), 400
+
+    return jsonify(result)
+

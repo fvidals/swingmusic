@@ -236,6 +236,20 @@ export const api = {
     return res.json();
   },
 
+  async uploadPlaylistCover(playlistId: number, file: File): Promise<any> {
+    const form = new FormData();
+    form.append('image', file);
+    const res = await fetch(`${BASE_URL}/playlists/${playlistId}/cover`, {
+      method: 'POST',
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Erro ao enviar capa da playlist');
+    }
+    return res.json();
+  },
+
   // SwingMusic Customization (Users, Avatars, Fallback Assets, Client)
   async getSwingUsers(): Promise<{ total: number; users: any[] }> {
     const res = await fetch(`${BASE_URL}/swingmusic/users`);

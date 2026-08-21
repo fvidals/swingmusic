@@ -55,3 +55,17 @@ def serve_user_image(filename: str):
 
     return send_from_directory(str(folder), filename, max_age=3600)
 
+
+@images_bp.route("/playlist/<filename>", methods=["GET"])
+def serve_playlist_image(filename: str):
+    """
+    Serves custom playlist cover image.
+    """
+    folder = settings.playlist_images_dir
+    file_path = folder / filename
+    if not file_path.exists():
+        abort(404)
+
+    return send_from_directory(str(folder), filename, max_age=3600)
+
+

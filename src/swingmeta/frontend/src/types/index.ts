@@ -102,6 +102,9 @@ export interface M3UPlaylist {
     last_updated: number;
     track_count: number;
     trackhashes: string[];
+    image?: string | null;
+    has_image?: boolean;
+    image_url?: string | null;
   };
 }
 
@@ -119,6 +122,8 @@ export interface M3UTrackItem {
   db_album?: string;
   db_filepath?: string;
   db_duration?: number;
+  artist?: string;
+  album?: string;
 }
 
 export interface M3UDetail {
@@ -135,7 +140,7 @@ export interface M3UDetail {
 export interface SwingUser {
   id: number;
   username: string;
-  image?: string;
+  image?: string | null;
   avatar_url?: string | null;
   has_custom_avatar: boolean;
   roles: string[];
@@ -171,6 +176,7 @@ export interface MountPointInfo {
   writable: boolean;
   track_count: number;
   source: string;
+  is_swing_root?: boolean;
 }
 
 export interface SystemStatus {
