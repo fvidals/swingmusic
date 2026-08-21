@@ -169,6 +169,27 @@ class TagService:
                         except Exception:
                             pass
 
+                    if "genre" in new_tags and new_tags["genre"] is not None:
+                        genre_val = str(new_tags["genre"]).strip()
+                        update_fields.append("genres = ?")
+                        params.append(genre_val)
+
+                    if "tracknumber" in new_tags and new_tags["tracknumber"]:
+                        try:
+                            t_num = int(str(new_tags["tracknumber"]).split("/")[0].strip())
+                            update_fields.append("track = ?")
+                            params.append(t_num)
+                        except Exception:
+                            pass
+
+                    if "discnumber" in new_tags and new_tags["discnumber"]:
+                        try:
+                            d_num = int(str(new_tags["discnumber"]).split("/")[0].strip())
+                            update_fields.append("disc = ?")
+                            params.append(d_num)
+                        except Exception:
+                            pass
+
                     params.append(str(filepath))
                     query = f"UPDATE track SET {', '.join(update_fields)} WHERE filepath = ?;"
                     conn.execute(query, params)
