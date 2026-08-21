@@ -60,7 +60,9 @@ def serve_user_image(filename: str):
     if not file_path.exists():
         abort(404)
 
-    return send_from_directory(str(folder), filename, max_age=3600)
+    response = send_from_directory(str(folder), filename, max_age=0)
+    response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
 
 
 @images_bp.route("/playlist/<filename>", methods=["GET"])

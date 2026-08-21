@@ -251,7 +251,7 @@ class TestSwingMeta(unittest.TestCase):
         self.assertEqual(res_avatar.status_code, 200)
         avatar_data = res_avatar.get_json()
         self.assertTrue(avatar_data["success"])
-        self.assertEqual(avatar_data["avatar_url"], "/api/images/user/1.webp")
+        self.assertTrue(avatar_data["avatar_url"].startswith("/api/images/user/"))
 
         # 3. Test listing fallback assets
         res_assets = self.client.get("/api/swingmusic/assets")

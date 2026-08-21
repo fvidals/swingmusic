@@ -141,7 +141,7 @@ def get_system_status():
     Returns the status of volume mounts, databases, dynamic music mount points, and general statistics.
     """
     swing_db_ok = settings.swingmusic_db_path.exists()
-    user_db_ok = settings.userdata_db_path.exists()
+    user_db_ok = settings.userdata_db_path.exists() or settings.swingmusic_db_path.exists()
     images_ok = settings.images_dir.exists()
     music_ok = settings.MUSIC_DIR.exists()
 

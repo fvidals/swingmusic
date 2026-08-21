@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -43,9 +44,9 @@ class SwingCustomService:
     @classmethod
     def get_all_users(cls) -> List[Dict[str, Any]]:
         """
-        Retrieves all users from userdata.db with avatar paths.
+        Retrieves all users from database with avatar paths.
         """
-        if not settings.userdata_db_path.exists():
+        if not settings.userdata_db_path.exists() and not settings.swingmusic_db_path.exists():
             return []
 
         users = []
@@ -80,9 +81,12 @@ class SwingCustomService:
                     if img and (img.startswith("http://") or img.startswith("https://") or img.startswith("data:")):
                         avatar_url = img
                     elif user_img_file.exists():
-                        avatar_url = f"/api/images/user/{uid}.webp"
+                        mtime = int(user_img_file.stat().st_mtime)
+                        avatar_url = f"/api/images/user/user_{uid}.webp?t={mtime}"
                     elif img:
-                        avatar_url = f"/api/images/user/{img}"
+                        custom_file = cls.get_users_images_dir() / img
+                        mtime = int(custom_file.stat().st_mtime) if custom_file.exists() else int(time.time())
+                        avatar_url = f"/api/images/user/{img}?t={mtime}"
 
                     users.append({
                         "id": uid,
@@ -99,7 +103,7 @@ class SwingCustomService:
                         "extra": extra,
                     })
             except Exception as e:
-                log.warning(f"Erro ao ler usuários do userdata.db: {e}")
+                log.warning(f"Erro ao ler usuários: {e}")
 
         return users
 
@@ -136,8 +140,9 @@ class SwingCustomService:
         filename = f"user_{user_id}.webp"
         save_path = cls.get_users_images_dir() / filename
         img.save(save_path, format="webp", quality=90)
+        mtime = int(save_path.stat().st_mtime)
 
-        # Update userdata.db
+        # Update user in database
         with user_db() as conn:
             conn.execute(
                 "UPDATE user SET image = ? WHERE id = ?;",
@@ -149,7 +154,7 @@ class SwingCustomService:
             "success": True,
             "user_id": user_id,
             "filename": filename,
-            "avatar_url": f"/api/images/user/{user_id}.webp",
+            "avatar_url": f"/api/images/user/{filename}?t={mtime}",
         }
 
     @classmethod
