@@ -1,4 +1,4 @@
-import type { Artist, ArtistDetail, FileTags, OnlineImageCandidate, SystemStatus, Track } from '../types';
+import type { Artist, ArtistDetail, FileTags, OnlineImageCandidate, SystemStatus, Track, BackupSummary } from '../types';
 
 const BASE_URL = '/api';
 
@@ -377,6 +377,28 @@ export const api = {
     return res.json();
   },
 
+  async patchClient(): Promise<any> {
+    const res = await fetch(`${BASE_URL}/swingmusic/client/patch`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Erro ao aplicar patch no client');
+    }
+    return res.json();
+  },
+
+  async unpatchClient(): Promise<any> {
+    const res = await fetch(`${BASE_URL}/swingmusic/client/patch`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Erro ao remover patch do client');
+    }
+    return res.json();
+  },
+
   // System
   async getSystemStatus(): Promise<SystemStatus> {
     const res = await fetch(`${BASE_URL}/system/status`);
@@ -393,6 +415,31 @@ export const api = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Erro ao validar credenciais do Spotify');
+    }
+    return res.json();
+  },
+
+  // Backup & Restore
+  async getBackupSummary(): Promise<BackupSummary> {
+    const res = await fetch(`${BASE_URL}/system/backup/summary`);
+    if (!res.ok) throw new Error('Erro ao obter resumo do backup');
+    return res.json();
+  },
+
+  getBackupDownloadUrl(): string {
+    return `${BASE_URL}/system/backup/download?t=${Date.now()}`;
+  },
+
+  async restoreBackup(file: File): Promise<any> {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(`${BASE_URL}/system/backup/restore`, {
+      method: 'POST',
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Falha ao restaurar backup');
     }
     return res.json();
   },

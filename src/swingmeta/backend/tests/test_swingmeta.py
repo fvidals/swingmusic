@@ -282,7 +282,72 @@ class TestSwingMeta(unittest.TestCase):
         self.assertEqual(data["updated_albums"], 1)
         self.assertTrue((settings.thumb_images_lg / "albumhash123.webp").exists())
 
+    def test_10_client_patch(self):
+        """Test applying and removing client custom avatar patch"""
+        client_dir = settings.CONFIG_DIR / "client"
+        client_dir.mkdir(parents=True, exist_ok=True)
+        index_file = client_dir / "index.html"
+        index_file.write_text("<!DOCTYPE html><html><head></head><body><div id='app'></div></body></html>", encoding="utf-8")
+
+        # 1. Check initial info
+        res_info = self.client.get("/api/swingmusic/client")
+        self.assertEqual(res_info.status_code, 200)
+        self.assertFalse(res_info.get_json()["is_patched"])
+
+        # 2. Apply patch
+        res_patch = self.client.post("/api/swingmusic/client/patch")
+        self.assertEqual(res_patch.status_code, 200)
+        self.assertTrue(res_patch.get_json()["success"])
+        self.assertTrue(res_patch.get_json()["is_patched"])
+
+        # Verify file content
+        content = index_file.read_text(encoding="utf-8")
+        self.assertIn("swingmeta-avatar-patch", content)
+
+        # 3. Remove patch
+        res_unpatch = self.client.delete("/api/swingmusic/client/patch")
+        self.assertEqual(res_unpatch.status_code, 200)
+        self.assertFalse(res_unpatch.get_json()["is_patched"])
+        content_unpatched = index_file.read_text(encoding="utf-8")
+        self.assertNotIn("swingmeta-avatar-patch", content_unpatched)
+
+    def test_11_backup_and_restore(self):
+        """Test backup summary, ZIP generation/download and restore"""
+        import zipfile
+
+        # 1. Summary
+        res_sum = self.client.get("/api/system/backup/summary")
+        self.assertEqual(res_sum.status_code, 200)
+        sum_data = res_sum.get_json()
+        self.assertTrue(sum_data["exists"])
+        self.assertTrue(sum_data["total_files"] > 0)
+        self.assertTrue(sum_data["total_size_bytes"] > 0)
+
+        # 2. Download ZIP
+        res_dl = self.client.get("/api/system/backup/download")
+        self.assertEqual(res_dl.status_code, 200)
+        self.assertEqual(res_dl.mimetype, "application/zip")
+        zip_bytes = res_dl.data
+        self.assertTrue(len(zip_bytes) > 0)
+
+        buf = io.BytesIO(zip_bytes)
+        with zipfile.ZipFile(buf, "r") as zf:
+            namelist = zf.namelist()
+            self.assertIn("swingmeta_manifest.json", namelist)
+            self.assertTrue(any("swingmusic.db" in n for n in namelist))
+
+        # 3. Restore
+        data = {
+            "file": (io.BytesIO(zip_bytes), "test_backup.zip")
+        }
+        res_res = self.client.post("/api/system/backup/restore", data=data, content_type="multipart/form-data")
+        self.assertEqual(res_res.status_code, 200)
+        res_data = res_res.get_json()
+        self.assertTrue(res_data["success"])
+        self.assertTrue(res_data["restored_files"] > 0)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

@@ -42,7 +42,13 @@ class Settings:
         If /config exists or SWING_CONFIG_DIR was specified, use that.
         Otherwise falls back to ~/.swingmusic or ~/.config/swingmusic or subfolder swingmusic.
         """
-        # 1. Direct swingmusic.db inside CONFIG_DIR
+        # 1. Custom or explicit CONFIG_DIR
+        if self.CONFIG_DIR != Path("/config") and self.CONFIG_DIR.exists():
+            if (self.CONFIG_DIR / "swingmusic" / "swingmusic.db").exists():
+                return self.CONFIG_DIR / "swingmusic"
+            return self.CONFIG_DIR
+
+        # 2. Standard /config mount
         if self.CONFIG_DIR.exists():
             if (self.CONFIG_DIR / "swingmusic.db").exists():
                 return self.CONFIG_DIR
@@ -53,7 +59,7 @@ class Settings:
             if (self.CONFIG_DIR / "images").exists() or (self.CONFIG_DIR / "userdata.db").exists():
                 return self.CONFIG_DIR
 
-        # 2. Check user home
+        # 3. Check user home
         home = Path.home().resolve()
         for candidate in [
             home / ".swingmusic",

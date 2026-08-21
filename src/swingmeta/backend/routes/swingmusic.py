@@ -145,3 +145,26 @@ def get_client_info():
     """
     info = SwingCustomService.get_client_info()
     return jsonify(info)
+
+
+@swingmusic_bp.route("/client/patch", methods=["POST"])
+def patch_client():
+    """
+    Applies the custom avatar patch to SwingMusic's client/index.html.
+    """
+    result = SwingCustomService.patch_client()
+    if not result.get("success"):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@swingmusic_bp.route("/client/patch", methods=["DELETE"])
+def unpatch_client():
+    """
+    Removes the custom avatar patch from SwingMusic's client/index.html.
+    """
+    result = SwingCustomService.unpatch_client()
+    if not result.get("success"):
+        return jsonify(result), 400
+    return jsonify(result)
+

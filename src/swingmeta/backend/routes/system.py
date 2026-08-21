@@ -2,10 +2,11 @@ import logging
 import os
 from pathlib import Path
 from typing import Any, List
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 
 from config import settings
 from database import swing_db, user_db
+from services.backup_service import BackupService
 from services.online_search import OnlineSearchService, _spotify_token
 
 log = logging.getLogger(__name__)
@@ -219,3 +220,62 @@ def update_spotify_config():
         "configured": bool(token),
         "message": "Credenciais do Spotify atualizadas com sucesso!",
     })
+
+
+@system_bp.route("/backup/summary", methods=["GET"])
+def get_backup_summary():
+    """
+    Returns summary statistics of the SwingMusic config directory for backup.
+    """
+    summary = BackupService.get_backup_summary()
+    return jsonify(summary)
+
+
+@system_bp.route("/backup/download", methods=["GET"])
+def download_backup():
+    """
+    Generates and downloads a .zip archive of the SwingMusic configuration.
+    """
+    try:
+        buf, filename = BackupService.create_backup_zip()
+        return send_file(
+            buf,
+            mimetype="application/zip",
+            as_attachment=True,
+            download_name=filename,
+        )
+    except Exception as e:
+        log.error(f"Erro ao gerar backup ZIP: {e}")
+        return jsonify({"success": False, "error": f"Falha ao gerar arquivo de backup: {e}"}), 500
+
+
+@system_bp.route("/backup/restore", methods=["POST"])
+def restore_backup():
+    """
+    Restores a backup .zip archive into the SwingMusic configuration directory.
+    """
+    file_bytes = None
+
+    if "file" in request.files:
+        file_bytes = request.files["file"].read()
+    elif request.is_json:
+        import base64
+        data = request.get_json()
+        b64_str = data.get("file_base64", "")
+        if b64_str:
+            if "," in b64_str:
+                b64_str = b64_str.split(",", 1)[1]
+            try:
+                file_bytes = base64.b64decode(b64_str)
+            except Exception as e:
+                return jsonify({"success": False, "error": f"Base64 inválido: {e}"}), 400
+
+    if not file_bytes:
+        return jsonify({"success": False, "error": "Nenhum arquivo de backup (.zip) enviado"}), 400
+
+    result = BackupService.restore_backup_zip(file_bytes)
+    if not result.get("success"):
+        return jsonify(result), 400
+
+    return jsonify(result)
+

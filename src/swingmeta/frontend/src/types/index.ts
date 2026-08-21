@@ -164,6 +164,7 @@ export interface FallbackAsset {
 
 export interface ClientInfo {
   exists: boolean;
+  is_patched?: boolean;
   version: string;
   path: string;
   total_files: number;
@@ -205,3 +206,22 @@ export interface SystemStatus {
     client_id: string;
   };
 }
+
+export interface BackupSummary {
+  exists: boolean;
+  config_dir: string;
+  total_size_bytes: number;
+  total_size_mb: number;
+  total_files: number;
+  database_count: number;
+  image_count: number;
+  images_size_bytes: number;
+  images_size_mb: number;
+  databases: Array<{
+    name: string;
+    relative_path: string;
+    size_bytes: number;
+    size_mb: number;
+  }>;
+}
+

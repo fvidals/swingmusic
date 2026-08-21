@@ -215,6 +215,29 @@ async function onAssetSelected(assetName: string, event: Event) {
   reader.readAsDataURL(file);
 }
 
+const isPatchingClient = ref(false);
+
+async function toggleClientPatch() {
+  if (!clientInfo.value) return;
+  isPatchingClient.value = true;
+  errorMsg.value = '';
+  try {
+    if (clientInfo.value.is_patched) {
+      const res = await api.unpatchClient();
+      showSuccess(res.message || 'Patch removido com sucesso!');
+      clientInfo.value.is_patched = false;
+    } else {
+      const res = await api.patchClient();
+      showSuccess(res.message || 'Patch aplicado com sucesso!');
+      clientInfo.value.is_patched = true;
+    }
+  } catch (err: any) {
+    showError(err.message || 'Erro ao modificar patch do client');
+  } finally {
+    isPatchingClient.value = false;
+  }
+}
+
 onMounted(() => {
   loadUsers();
   loadAssets();
@@ -526,6 +549,46 @@ onMounted(() => {
           <p class="text-gray-500">
             Você pode customizar estilos, ícones ou scripts adicionais diretamente montando ou editando este diretório no seu servidor.
           </p>
+        </div>
+
+        <!-- Custom Avatar Patch Card -->
+        <div v-if="clientInfo && clientInfo.exists" class="p-5 bg-surface-elevated/70 rounded-2xl border border-white/5 space-y-4">
+          <div class="flex items-center justify-between flex-wrap gap-4">
+            <div class="flex items-start space-x-3.5 max-w-xl">
+              <div
+                class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                :class="clientInfo.is_patched ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 border border-white/10 text-gray-400'"
+              >
+                <Sparkles class="w-5 h-5" />
+              </div>
+              <div>
+                <div class="flex items-center space-x-2">
+                  <h3 class="text-sm font-bold text-white">Patch de Foto de Perfil no SwingMusic</h3>
+                  <span
+                    class="px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                    :class="clientInfo.is_patched ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'"
+                  >
+                    {{ clientInfo.is_patched ? 'Patch Ativo' : 'Não Aplicado' }}
+                  </span>
+                </div>
+                <p class="text-xs text-gray-400 mt-1 leading-relaxed">
+                  Modifica suavemente o <code>index.html</code> do client oficial do SwingMusic para substituir o avatar abstrato SVG pela sua foto real enviada no SwingMeta.
+                </p>
+              </div>
+            </div>
+
+            <button
+              @click="toggleClientPatch"
+              :disabled="isPatchingClient"
+              class="px-4 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center space-x-1.5 shadow-lg disabled:opacity-50"
+              :class="clientInfo.is_patched ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20' : 'bg-accent hover:bg-accent/90 text-black shadow-accent/20'"
+            >
+              <Loader2 v-if="isPatchingClient" class="w-3.5 h-3.5 animate-spin" />
+              <Check v-else-if="!clientInfo.is_patched" class="w-3.5 h-3.5" />
+              <Trash2 v-else class="w-3.5 h-3.5" />
+              <span>{{ isPatchingClient ? 'Processando...' : clientInfo.is_patched ? 'Remover Patch' : 'Aplicar Patch no WebClient' }}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

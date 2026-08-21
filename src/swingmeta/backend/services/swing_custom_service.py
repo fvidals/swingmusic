@@ -255,13 +255,72 @@ class SwingCustomService:
         except Exception as e:
             return {"success": False, "error": f"Erro ao gravar asset: {e}"}
 
+    AVATAR_PATCH_SCRIPT = """
+    <!-- SwingMeta Custom Avatar Patch -->
+    <script id="swingmeta-avatar-patch">
+      (function() {
+        function applyCustomAvatar() {
+          var containers = document.querySelectorAll('.topnav .avatar .img.circular, .avatar .img.circular');
+          if (!containers || containers.length === 0) return;
+
+          var host = window.location.hostname || 'localhost';
+          var isHttps = window.location.protocol === 'https:';
+          var metaUrl = (isHttps ? 'https://' : 'http://') + host + ':1971/api/images/user/user_1.webp';
+          var relativeUrl = '/api/images/user/user_1.webp';
+
+          containers.forEach(function(container) {
+            if (container.getAttribute('data-swingmeta-patched') === 'true') return;
+            container.setAttribute('data-swingmeta-patched', 'true');
+
+            var img = document.createElement('img');
+            img.src = metaUrl + '?t=' + Date.now();
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'cover';
+            img.style.borderRadius = '50%';
+            img.style.display = 'block';
+
+            img.onload = function() {
+              container.innerHTML = '';
+              container.appendChild(img);
+            };
+
+            img.onerror = function() {
+              if (img.src.indexOf(':1971') !== -1) {
+                img.src = relativeUrl + '?t=' + Date.now();
+              } else {
+                container.removeAttribute('data-swingmeta-patched');
+              }
+            };
+          });
+        }
+
+        var observer = new MutationObserver(function() {
+          applyCustomAvatar();
+        });
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+        window.addEventListener('DOMContentLoaded', applyCustomAvatar);
+        window.addEventListener('load', applyCustomAvatar);
+        setInterval(applyCustomAvatar, 2000);
+      })();
+    </script>"""
+
     @classmethod
     def get_client_info(cls) -> Dict[str, Any]:
         """
         Inspects SwingMusic webclient folder (/config/client).
         """
         client_dir = cls.get_client_dir()
-        exists = client_dir.exists() and (client_dir / "index.html").exists()
+        index_file = client_dir / "index.html"
+        exists = client_dir.exists() and index_file.exists()
+
+        is_patched = False
+        if exists:
+            try:
+                content = index_file.read_text(encoding="utf-8")
+                is_patched = "swingmeta-avatar-patch" in content
+            except Exception:
+                pass
 
         version = "Desconhecida"
         version_file = client_dir / "version.txt"
@@ -280,7 +339,64 @@ class SwingCustomService:
 
         return {
             "exists": exists,
+            "is_patched": is_patched,
             "version": version,
             "path": str(client_dir),
             "total_files": total_files,
         }
+
+    @classmethod
+    def patch_client(cls) -> Dict[str, Any]:
+        """
+        Applies the custom avatar patch to SwingMusic's client/index.html and index.html.gz.
+        """
+        import gzip
+        client_dir = cls.get_client_dir()
+        index_file = client_dir / "index.html"
+        gz_file = client_dir / "index.html.gz"
+
+        if not index_file.exists():
+            return {"success": False, "error": "client/index.html não encontrado na pasta de configuração"}
+
+        content = index_file.read_text(encoding="utf-8")
+        if "swingmeta-avatar-patch" in content:
+            return {"success": True, "message": "O patch já está aplicado no client!", "is_patched": True}
+
+        if "</body>" in content:
+            new_content = content.replace("</body>", f"{cls.AVATAR_PATCH_SCRIPT}\n  </body>")
+        else:
+            new_content = content + cls.AVATAR_PATCH_SCRIPT
+
+        index_file.write_text(new_content, encoding="utf-8")
+        gz_data = gzip.compress(new_content.encode("utf-8"))
+        gz_file.write_bytes(gz_data)
+
+        return {"success": True, "message": "Patch de avatar aplicado com sucesso no WebClient do SwingMusic!", "is_patched": True}
+
+    @classmethod
+    def unpatch_client(cls) -> Dict[str, Any]:
+        """
+        Removes the custom avatar patch from SwingMusic's client/index.html and index.html.gz.
+        """
+        import gzip
+        import re
+        client_dir = cls.get_client_dir()
+        index_file = client_dir / "index.html"
+        gz_file = client_dir / "index.html.gz"
+
+        if not index_file.exists():
+            return {"success": False, "error": "client/index.html não encontrado"}
+
+        content = index_file.read_text(encoding="utf-8")
+        if "swingmeta-avatar-patch" not in content:
+            return {"success": True, "message": "O patch não está aplicado.", "is_patched": False}
+
+        pattern = r"\s*<!-- SwingMeta Custom Avatar Patch -->[\s\S]*?</script>"
+        new_content = re.sub(pattern, "", content)
+
+        index_file.write_text(new_content, encoding="utf-8")
+        if gz_file.exists():
+            gz_data = gzip.compress(new_content.encode("utf-8"))
+            gz_file.write_bytes(gz_data)
+
+        return {"success": True, "message": "Patch removido com sucesso!", "is_patched": False}
