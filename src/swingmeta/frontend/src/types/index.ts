@@ -164,6 +164,15 @@ export interface ClientInfo {
   total_files: number;
 }
 
+export interface MountPointInfo {
+  path: string;
+  label: string;
+  exists: boolean;
+  writable: boolean;
+  track_count: number;
+  source: string;
+}
+
 export interface SystemStatus {
   status: string;
   version: string;
@@ -180,6 +189,7 @@ export interface SystemStatus {
     images_dir_exists: boolean;
     music_dir_exists: boolean;
   };
+  mount_points?: MountPointInfo[];
   stats: {
     track_count: number;
     artist_image_count: number;

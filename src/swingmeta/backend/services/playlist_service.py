@@ -15,26 +15,51 @@ class PlaylistService:
     @staticmethod
     def find_m3u_files() -> List[Path]:
         """
-        Finds all .m3u and .m3u8 files in the MUSIC_DIR.
-        Prioritizes the 'Playlists' subdirectory if it exists.
+        Finds all .m3u and .m3u8 files in MUSIC_DIR and all discovered music mount points.
+        Prioritizes the 'Playlists' subdirectories.
         """
-        music_dir = settings.MUSIC_DIR
-        if not music_dir.exists():
-            return []
+        candidate_dirs = [settings.MUSIC_DIR]
+
+        # Also discover folders from track table
+        if settings.swingmusic_db_path.exists():
+            try:
+                with swing_db() as conn:
+                    rows = conn.execute("SELECT DISTINCT folder FROM track;").fetchall()
+                    for r in rows:
+                        f = r["folder"]
+                        if f:
+                            p = Path(f)
+                            # Add root folder if exists
+                            if p.exists() and p not in candidate_dirs:
+                                candidate_dirs.append(p)
+                            parts = f.strip("/").split("/")
+                            if parts:
+                                top_p = Path("/" + parts[0])
+                                if top_p.exists() and top_p not in candidate_dirs:
+                                    candidate_dirs.append(top_p)
+            except Exception:
+                pass
 
         m3u_files = []
+        seen_paths = set()
 
-        # Check in Playlists directory first
-        playlists_dir = music_dir / "Playlists"
-        if playlists_dir.exists() and playlists_dir.is_dir():
-            for p in playlists_dir.glob("*.m3u*"):
-                if p.is_file():
+        for m_dir in candidate_dirs:
+            if not m_dir.exists():
+                continue
+
+            # Check in Playlists directory first
+            playlists_dir = m_dir / "Playlists"
+            if playlists_dir.exists() and playlists_dir.is_dir():
+                for p in playlists_dir.glob("*.m3u*"):
+                    if p.is_file() and p.resolve() not in seen_paths:
+                        seen_paths.add(p.resolve())
+                        m3u_files.append(p)
+
+            # Also search recursively in m_dir
+            for p in m_dir.rglob("*.m3u*"):
+                if p.is_file() and p.resolve() not in seen_paths:
+                    seen_paths.add(p.resolve())
                     m3u_files.append(p)
-
-        # Also search recursively in music_dir
-        for p in music_dir.rglob("*.m3u*"):
-            if p.is_file() and p not in m3u_files:
-                m3u_files.append(p)
 
         return sorted(m3u_files, key=lambda x: x.name.lower())
 

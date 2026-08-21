@@ -96,8 +96,8 @@ onMounted(() => {
     <!-- Volume Mounts Status -->
     <div class="bg-surface rounded-3xl p-6 sm:p-8 border border-white/5 space-y-6">
       <div class="flex items-center space-x-2">
-        <HardDrive class="w-5 h-5 text-accent" />
-        <h2 class="text-lg font-bold text-white">Pontos de Montagem & Bancos de Dados</h2>
+        <Database class="w-5 h-5 text-accent" />
+        <h2 class="text-lg font-bold text-white">Banco de Dados & Armazenamento</h2>
       </div>
 
       <div v-if="status" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -119,29 +119,7 @@ onMounted(() => {
               </span>
             </div>
             <p class="text-xs text-gray-400 font-mono truncate mt-1">{{ status.paths.swingmusic_db }}</p>
-            <p class="text-xs text-gray-500 mt-0.5">{{ status.stats.track_count }} faixas indexadas</p>
-          </div>
-        </div>
-
-        <!-- userdata.db -->
-        <div class="bg-surface-elevated rounded-2xl p-4 border border-white/5 flex items-start space-x-3.5">
-          <div class="p-2.5 rounded-xl bg-white/5 text-gray-300">
-            <Database class="w-5 h-5" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center justify-between">
-              <span class="font-semibold text-sm text-white">userdata.db</span>
-              <span
-                class="px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center space-x-1"
-                :class="status.mounts.userdata_db_exists ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'"
-              >
-                <CheckCircle2 v-if="status.mounts.userdata_db_exists" class="w-3 h-3" />
-                <AlertTriangle v-else class="w-3 h-3" />
-                <span>{{ status.mounts.userdata_db_exists ? 'Conectado' : 'Criado Automaticamente' }}</span>
-              </span>
-            </div>
-            <p class="text-xs text-gray-400 font-mono truncate mt-1">{{ status.paths.userdata_db }}</p>
-            <p class="text-xs text-gray-500 mt-0.5">Metadados e biografias de artistas</p>
+            <p class="text-xs text-gray-500 mt-0.5">{{ status.stats.track_count }} faixas no catálogo</p>
           </div>
         </div>
 
@@ -163,29 +141,52 @@ onMounted(() => {
               </span>
             </div>
             <p class="text-xs text-gray-400 font-mono truncate mt-1">{{ status.paths.images_dir }}</p>
-            <p class="text-xs text-gray-500 mt-0.5">{{ status.stats.artist_image_count }} fotos de artistas salvas</p>
+            <p class="text-xs text-gray-500 mt-0.5">{{ status.stats.artist_image_count }} fotos de artistas e capas</p>
           </div>
         </div>
+      </div>
+    </div>
 
-        <!-- Music Folder -->
-        <div class="bg-surface-elevated rounded-2xl p-4 border border-white/5 flex items-start space-x-3.5">
+    <!-- Music & Extra Mount Points -->
+    <div class="bg-surface rounded-3xl p-6 sm:p-8 border border-white/5 space-y-6">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <HardDrive class="w-5 h-5 text-accent" />
+          <div>
+            <h2 class="text-lg font-bold text-white">Volumes de Músicas & Downloads</h2>
+            <p class="text-xs text-gray-400">Pontos de montagem detectados no container para leitura e gravação de tags ID3</p>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="status?.mount_points && status.mount_points.length > 0" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div
+          v-for="mount in status.mount_points"
+          :key="mount.path"
+          class="bg-surface-elevated rounded-2xl p-4 border border-white/5 flex items-start space-x-3.5"
+        >
           <div class="p-2.5 rounded-xl bg-white/5 text-gray-300">
             <FileMusic class="w-5 h-5" />
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center justify-between">
-              <span class="font-semibold text-sm text-white">Diretório /music</span>
+              <span class="font-semibold text-sm text-white font-mono">{{ mount.path }}</span>
               <span
                 class="px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center space-x-1"
-                :class="status.mounts.music_dir_exists ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'"
+                :class="mount.exists ? (mount.writable ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20') : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'"
               >
-                <CheckCircle2 v-if="status.mounts.music_dir_exists" class="w-3 h-3" />
+                <CheckCircle2 v-if="mount.exists" class="w-3 h-3" />
                 <AlertTriangle v-else class="w-3 h-3" />
-                <span>{{ status.mounts.music_dir_exists ? 'Conectado' : 'Não montado' }}</span>
+                <span>{{ mount.exists ? (mount.writable ? 'Leitura & Escrita' : 'Somente Leitura') : 'Não montado' }}</span>
               </span>
             </div>
-            <p class="text-xs text-gray-400 font-mono truncate mt-1">{{ status.paths.music_dir }}</p>
-            <p class="text-xs text-gray-500 mt-0.5">Necessário para edição física de tags ID3</p>
+            <p class="text-xs text-gray-400 truncate mt-1">{{ mount.label }}</p>
+            <div class="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+              <span v-if="mount.track_count > 0" class="text-accent font-semibold">
+                {{ mount.track_count }} faixas associadas
+              </span>
+              <span v-else class="text-gray-500">Nenhuma faixa associada</span>
+            </div>
           </div>
         </div>
       </div>
