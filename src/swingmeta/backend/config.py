@@ -1,3 +1,4 @@
+import json
 import os
 import pathlib
 from dataclasses import dataclass
@@ -141,5 +142,39 @@ class Settings:
         p.mkdir(parents=True, exist_ok=True)
         return p
 
+    @property
+    def swingmeta_settings_file(self) -> Path:
+        return self.resolved_config_dir / "swingmeta.json"
+
+    def get_custom_settings(self) -> dict:
+        p = self.swingmeta_settings_file
+        defaults = {
+            "embed_audio_tags": False,  # Feature toggle: Disabled by default
+            "spotify_client_id": self.SPOTIFY_CLIENT_ID,
+            "spotify_client_secret": self.SPOTIFY_CLIENT_SECRET,
+        }
+        if p.exists():
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                defaults.update(data)
+            except Exception:
+                pass
+        return defaults
+
+    def update_custom_settings(self, new_settings: dict) -> dict:
+        current = self.get_custom_settings()
+        current.update(new_settings)
+        try:
+            self.resolved_config_dir.mkdir(parents=True, exist_ok=True)
+            self.swingmeta_settings_file.write_text(json.dumps(current, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+        if "spotify_client_id" in current:
+            self.SPOTIFY_CLIENT_ID = current["spotify_client_id"]
+        if "spotify_client_secret" in current:
+            self.SPOTIFY_CLIENT_SECRET = current["spotify_client_secret"]
+        return current
+
 
 settings = Settings()
+

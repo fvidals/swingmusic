@@ -320,11 +320,18 @@ class TagService:
         return False
 
     @classmethod
-    def embed_cover_for_album(cls, albumhash: str, image_bytes: bytes) -> int:
+    def embed_cover_for_album(cls, albumhash: str, image_bytes: bytes, embed_audio: Optional[bool] = None) -> int:
         """
         Embeds cover artwork into all tracks belonging to the given albumhash in swingmusic.db.
+        If embed_audio is None, respects the global 'embed_audio_tags' setting (default: False).
         Returns the number of files successfully updated.
         """
+        if embed_audio is None:
+            embed_audio = settings.get_custom_settings().get("embed_audio_tags", False)
+
+        if not embed_audio:
+            return 0
+
         updated = 0
         if settings.swingmusic_db_path.exists():
             try:
@@ -339,13 +346,17 @@ class TagService:
         return updated
 
     @classmethod
-    def embed_cover_for_tracks(cls, track_ids: List[int], image_bytes: bytes, embed_audio: bool = True) -> Dict[str, Any]:
+    def embed_cover_for_tracks(cls, track_ids: List[int], image_bytes: bytes, embed_audio: Optional[bool] = None) -> Dict[str, Any]:
         """
         Embeds cover artwork into the given list of track IDs and updates album thumbnails.
+        If embed_audio is None, respects the global 'embed_audio_tags' setting (default: False).
         """
         from services.image_service import ImageService
         if not track_ids:
             return {"success": False, "error": "Nenhuma faixa informada"}
+
+        if embed_audio is None:
+            embed_audio = settings.get_custom_settings().get("embed_audio_tags", False)
 
         updated_files = 0
         albumhashes = set()
@@ -381,6 +392,7 @@ class TagService:
             "updated_files": updated_files,
             "updated_albums": updated_albums,
             "albumhashes": list(albumhashes),
+            "embed_audio": embed_audio,
         }
 
 

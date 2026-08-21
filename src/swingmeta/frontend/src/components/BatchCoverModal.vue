@@ -30,7 +30,7 @@ type TabType = 'upload' | 'url' | 'online';
 const activeTab = ref<TabType>('upload');
 
 // Options
-const embedAudio = ref(true);
+const embedAudio = ref(false);
 const isProcessing = ref(false);
 const errorMsg = ref('');
 const successMsg = ref('');
@@ -70,7 +70,14 @@ const canSubmit = computed(() => {
 });
 
 // Initialization
-onMounted(() => {
+onMounted(async () => {
+  try {
+    const s = await api.getSettings();
+    embedAudio.value = s.embed_audio_tags ?? false;
+  } catch (err) {
+    embedAudio.value = false;
+  }
+
   if (props.selectedTracks.length > 0) {
     const first = props.selectedTracks[0];
     searchAlbum.value = first.album || '';

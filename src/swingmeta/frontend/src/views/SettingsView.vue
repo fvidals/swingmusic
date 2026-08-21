@@ -19,6 +19,8 @@ import {
   Check,
   ShieldCheck,
   FolderTree,
+  Tag,
+  Sliders,
 } from 'lucide-vue-next';
 import { api } from '../api/client';
 import type { SystemStatus, BackupSummary } from '../types';
@@ -137,6 +139,40 @@ async function handleRestoreBackup(event: Event) {
   }
 }
 
+// Feature Toggle: Embed Audio Tags
+const embedAudioTags = ref(false);
+const isUpdatingToggle = ref(false);
+const toggleMsg = ref('');
+
+async function loadSettings() {
+  try {
+    const s = await api.getSettings();
+    embedAudioTags.value = s.embed_audio_tags ?? false;
+  } catch (err) {
+    console.warn('Erro ao carregar configurações:', err);
+  }
+}
+
+async function handleToggleEmbedAudio() {
+  isUpdatingToggle.value = true;
+  toggleMsg.value = '';
+  try {
+    const newVal = !embedAudioTags.value;
+    const res = await api.updateSettings({ embed_audio_tags: newVal });
+    embedAudioTags.value = res.settings.embed_audio_tags;
+    toggleMsg.value = embedAudioTags.value
+      ? 'Gravação física de tags em arquivos de áudio ATIVADA.'
+      : 'Gravação física de tags DESATIVADA (modo padrão seguro).';
+    setTimeout(() => {
+      toggleMsg.value = '';
+    }, 4000);
+  } catch (err: any) {
+    console.error('Erro ao atualizar toggle:', err);
+  } finally {
+    isUpdatingToggle.value = false;
+  }
+}
+
 function triggerRestoreInput() {
   restoreFileInput.value?.click();
 }
@@ -144,6 +180,7 @@ function triggerRestoreInput() {
 onMounted(() => {
   loadStatus();
   loadBackupSummary();
+  loadSettings();
 });
 </script>
 
@@ -281,6 +318,59 @@ onMounted(() => {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Feature Toggle: Physical Audio Tags Embedding -->
+    <div class="bg-surface rounded-3xl p-6 sm:p-8 border border-white/5 space-y-5 shadow-sm">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="flex items-start space-x-3.5 max-w-2xl">
+          <div
+            class="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition-colors"
+            :class="embedAudioTags ? 'bg-accent/15 text-accent border border-accent/30' : 'bg-white/5 text-gray-400 border border-white/10'"
+          >
+            <Tag class="w-5 h-5" />
+          </div>
+          <div>
+            <div class="flex items-center space-x-2.5">
+              <h2 class="text-lg font-bold text-white">Gravar Tags nos Arquivos de Áudio (ID3 / FLAC)</h2>
+              <span
+                class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                :class="embedAudioTags ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-white/5 text-gray-400 border border-white/10'"
+              >
+                {{ embedAudioTags ? 'Ativado' : 'Desativado (Padrão Seguro)' }}
+              </span>
+            </div>
+            <p class="text-xs text-gray-400 mt-1 leading-relaxed">
+              O propósito padrão do <strong>SwingMeta</strong> é atualizar o catálogo do <code>swingmusic.db</code> e as miniaturas WebP de capas, sem alterar os arquivos no disco (ideal para pontos de montagem somente leitura <code>:ro</code>).
+            </p>
+            <p class="text-xs text-gray-500 mt-1">
+              Ative esta opção apenas se seus volumes de música tiverem permissão de escrita e você desejar gravar capas e tags ID3 permanentemente dentro dos arquivos de áudio originais.
+            </p>
+          </div>
+        </div>
+
+        <!-- Custom Switch Toggle -->
+        <button
+          type="button"
+          @click="handleToggleEmbedAudio"
+          :disabled="isUpdatingToggle"
+          class="relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 self-start sm:self-center"
+          :class="embedAudioTags ? 'bg-accent' : 'bg-surface-elevated border-white/10'"
+          role="switch"
+          :aria-checked="embedAudioTags"
+        >
+          <span
+            aria-hidden="true"
+            class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+            :class="embedAudioTags ? 'translate-x-5 !bg-black' : 'translate-x-0 !bg-gray-400'"
+          />
+        </button>
+      </div>
+
+      <div v-if="toggleMsg" class="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-xl text-xs flex items-center space-x-2">
+        <Check class="w-4 h-4 text-emerald-400 flex-shrink-0" />
+        <span>{{ toggleMsg }}</span>
       </div>
     </div>
 

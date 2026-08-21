@@ -332,8 +332,9 @@ def batch_update_cover():
     - image_base64: string
     - embed_audio: bool (default True)
     """
+    global_embed_default = settings.get_custom_settings().get("embed_audio_tags", False)
     track_ids = []
-    embed_audio = True
+    embed_audio = global_embed_default
     image_url = None
     image_base64 = None
     file_obj = None
@@ -341,7 +342,7 @@ def batch_update_cover():
     if request.is_json:
         data = request.get_json() or {}
         track_ids = data.get("track_ids", [])
-        embed_audio = data.get("embed_audio", True)
+        embed_audio = data.get("embed_audio", global_embed_default)
         image_url = data.get("image_url")
         image_base64 = data.get("image_base64")
     else:
@@ -352,7 +353,11 @@ def batch_update_cover():
                 track_ids = json.loads(raw_ids) if raw_ids.startswith("[") else [int(x.strip()) for x in raw_ids.split(",") if x.strip()]
             except Exception:
                 pass
-        embed_audio = request.form.get("embed_audio", "true").lower() in ("true", "1", "yes")
+        raw_embed = request.form.get("embed_audio")
+        if raw_embed is not None:
+            embed_audio = raw_embed.lower() in ("true", "1", "yes")
+        else:
+            embed_audio = global_embed_default
         image_url = request.form.get("image_url")
         image_base64 = request.form.get("image_base64")
 

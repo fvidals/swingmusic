@@ -180,6 +180,12 @@ export interface MountPointInfo {
   is_swing_root?: boolean;
 }
 
+export interface SwingMetaSettings {
+  embed_audio_tags: boolean;
+  spotify_client_id?: string;
+  spotify_client_secret?: string;
+}
+
 export interface SystemStatus {
   status: string;
   version: string;
@@ -201,6 +207,7 @@ export interface SystemStatus {
     track_count: number;
     artist_image_count: number;
   };
+  settings?: SwingMetaSettings;
   spotify: {
     configured: boolean;
     client_id: string;

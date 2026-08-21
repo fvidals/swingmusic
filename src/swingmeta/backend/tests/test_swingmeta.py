@@ -346,8 +346,29 @@ class TestSwingMeta(unittest.TestCase):
         self.assertTrue(res_data["success"])
         self.assertTrue(res_data["restored_files"] > 0)
 
+    def test_12_feature_toggle_settings(self):
+        """Test persistent settings feature toggle (embed_audio_tags)"""
+        # 1. Default should be False
+        res = self.client.get("/api/system/settings")
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.get_json()["embed_audio_tags"])
+
+        # 2. Update to True
+        res_up = self.client.post("/api/system/settings", json={"embed_audio_tags": True})
+        self.assertEqual(res_up.status_code, 200)
+        self.assertTrue(res_up.get_json()["settings"]["embed_audio_tags"])
+
+        # 3. Check status endpoint contains updated settings
+        res_stat = self.client.get("/api/system/status")
+        self.assertEqual(res_stat.status_code, 200)
+        self.assertTrue(res_stat.get_json()["settings"]["embed_audio_tags"])
+
+        # 4. Reset to False
+        self.client.post("/api/system/settings", json={"embed_audio_tags": False})
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

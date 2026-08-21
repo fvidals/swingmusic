@@ -1,4 +1,4 @@
-import type { Artist, ArtistDetail, FileTags, OnlineImageCandidate, SystemStatus, Track, BackupSummary } from '../types';
+import type { Artist, ArtistDetail, FileTags, OnlineImageCandidate, SystemStatus, Track, BackupSummary, SwingMetaSettings } from '../types';
 
 const BASE_URL = '/api';
 
@@ -416,6 +416,23 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Erro ao validar credenciais do Spotify');
     }
+    return res.json();
+  },
+
+  // Settings
+  async getSettings(): Promise<SwingMetaSettings> {
+    const res = await fetch(`${BASE_URL}/system/settings`);
+    if (!res.ok) throw new Error('Erro ao obter configurações do sistema');
+    return res.json();
+  },
+
+  async updateSettings(settings: Partial<SwingMetaSettings>): Promise<any> {
+    const res = await fetch(`${BASE_URL}/system/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    if (!res.ok) throw new Error('Erro ao salvar configurações');
     return res.json();
   },
 

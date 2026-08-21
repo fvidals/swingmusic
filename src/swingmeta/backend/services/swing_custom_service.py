@@ -257,10 +257,35 @@ class SwingCustomService:
 
     AVATAR_PATCH_SCRIPT = """
     <!-- SwingMeta Custom Avatar Patch -->
+    <style id="swingmeta-avatar-style">
+      /* Remove solid color overlay on avatar hover */
+      .avatar .img:after,
+      .avatar .img:hover:after,
+      .avatar:hover .img:after,
+      .avatar .img.circular:after,
+      .avatar .img.circular:hover:after {
+        display: none !important;
+        background-color: transparent !important;
+        opacity: 0 !important;
+        content: none !important;
+      }
+      .avatar,
+      .avatar:hover,
+      .avatar .img,
+      .avatar .img:hover {
+        background-color: transparent !important;
+      }
+      .avatar .img img {
+        transition: opacity 0.2s ease, transform 0.2s ease;
+      }
+      .avatar:hover .img img {
+        opacity: 0.9;
+      }
+    </style>
     <script id="swingmeta-avatar-patch">
       (function() {
         function applyCustomAvatar() {
-          var containers = document.querySelectorAll('.topnav .avatar .img.circular, .avatar .img.circular');
+          var containers = document.querySelectorAll('.topnav .avatar .img.circular, .avatar .img.circular, .avatar .img');
           if (!containers || containers.length === 0) return;
 
           var host = window.location.hostname || 'localhost';
@@ -303,7 +328,8 @@ class SwingCustomService:
         window.addEventListener('load', applyCustomAvatar);
         setInterval(applyCustomAvatar, 2000);
       })();
-    </script>"""
+    </script>
+    <!-- End SwingMeta Custom Avatar Patch -->"""
 
     @classmethod
     def get_client_info(cls) -> Dict[str, Any]:
@@ -388,10 +414,10 @@ class SwingCustomService:
             return {"success": False, "error": "client/index.html não encontrado"}
 
         content = index_file.read_text(encoding="utf-8")
-        if "swingmeta-avatar-patch" not in content:
+        if "swingmeta-avatar-patch" not in content and "<!-- SwingMeta Custom Avatar Patch -->" not in content:
             return {"success": True, "message": "O patch não está aplicado.", "is_patched": False}
 
-        pattern = r"\s*<!-- SwingMeta Custom Avatar Patch -->[\s\S]*?</script>"
+        pattern = r"\s*<!-- SwingMeta Custom Avatar Patch -->[\s\S]*?(?:<!-- End SwingMeta Custom Avatar Patch -->|</script>)"
         new_content = re.sub(pattern, "", content)
 
         index_file.write_text(new_content, encoding="utf-8")
@@ -400,3 +426,4 @@ class SwingCustomService:
             gz_file.write_bytes(gz_data)
 
         return {"success": True, "message": "Patch removido com sucesso!", "is_patched": False}
+

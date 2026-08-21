@@ -186,10 +186,33 @@ def get_system_status():
             "track_count": track_count,
             "artist_image_count": artist_image_count,
         },
+        "settings": settings.get_custom_settings(),
         "spotify": {
             "configured": bool(settings.SPOTIFY_CLIENT_ID and settings.SPOTIFY_CLIENT_SECRET),
             "client_id": settings.SPOTIFY_CLIENT_ID[:6] + "..." if settings.SPOTIFY_CLIENT_ID else "",
         },
+    })
+
+
+@system_bp.route("/settings", methods=["GET"])
+def get_system_settings():
+    """
+    Returns custom persistent SwingMeta settings (e.g. embed_audio_tags).
+    """
+    return jsonify(settings.get_custom_settings())
+
+
+@system_bp.route("/settings", methods=["POST"])
+def update_system_settings():
+    """
+    Updates custom persistent SwingMeta settings.
+    """
+    data = request.get_json() or {}
+    updated = settings.update_custom_settings(data)
+    return jsonify({
+        "success": True,
+        "message": "Configurações salvas com sucesso!",
+        "settings": updated,
     })
 
 
@@ -206,6 +229,12 @@ def update_spotify_config():
     settings.SPOTIFY_CLIENT_ID = client_id
     settings.SPOTIFY_CLIENT_SECRET = client_secret
     _spotify_token = None
+
+    # Save to persistent swingmeta.json
+    settings.update_custom_settings({
+        "spotify_client_id": client_id,
+        "spotify_client_secret": client_secret,
+    })
 
     # Test credentials
     token = OnlineSearchService.get_spotify_token()
