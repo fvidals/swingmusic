@@ -366,9 +366,37 @@ class TestSwingMeta(unittest.TestCase):
         # 4. Reset to False
         self.client.post("/api/system/settings", json={"embed_audio_tags": False})
 
+    def test_13_album_edit_cover_preservation(self):
+        """Test that editing an album title preserves and migrates thumbnails to the new albumhash"""
+        # 1. Update track 1 tags with new album name
+        res_up = self.client.put("/api/tracks/1/tags", json={
+            "title": "Bohemian Rhapsody",
+            "artist": "Queen",
+            "album": "A Night at the Opera (Remastered 2026)",
+            "albumartist": "Queen",
+            "year": "1975",
+        })
+        self.assertEqual(res_up.status_code, 200)
+        data_up = res_up.get_json()
+        self.assertTrue(data_up["success"])
+        new_hash = data_up["albumhash"]
+        self.assertTrue(len(new_hash) > 0)
+
+        # 2. Check that thumbnails were generated/migrated for the new albumhash
+        self.assertTrue((settings.thumb_images_md / f"{new_hash}.webp").exists())
+        self.assertTrue((settings.thumb_images_lg / f"{new_hash}.webp").exists())
+
+        # 3. Check track detail returns has_cover = True
+        res_detail = self.client.get("/api/tracks/1")
+        self.assertEqual(res_detail.status_code, 200)
+        track_data = res_detail.get_json()["database"]
+        self.assertTrue(track_data["has_cover"])
+        self.assertEqual(track_data["cover_url"], f"/api/images/thumbnail/medium/{new_hash}.webp")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

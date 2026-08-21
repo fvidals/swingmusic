@@ -142,8 +142,18 @@ def get_track_detail(track_id: int):
 
     ahash = track.get("albumhash") or ""
     has_cover = check_album_has_cover(ahash)
+    if not has_cover and track.get("filepath") and ahash:
+        try:
+            cover_bytes = TagService.extract_cover_from_audio_file(track["filepath"])
+            if cover_bytes:
+                ImageService.process_and_save_album_cover(cover_bytes, ahash)
+                has_cover = True
+        except Exception:
+            pass
+
     track["has_cover"] = has_cover
     track["cover_url"] = f"/api/images/thumbnail/medium/{ahash}.webp" if has_cover else None
+    track["cover_url_lg"] = f"/api/images/thumbnail/large/{ahash}.webp" if has_cover else None
 
     file_tags = TagService.read_audio_tags(track["filepath"])
     return jsonify({

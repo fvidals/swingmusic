@@ -12,12 +12,63 @@ from mutagen.oggvorbis import OggVorbis
 
 from config import settings
 from database import swing_db
-from services.hash_utils import create_hash
+from services.hash_utils import create_hash, clean_album_title
 
 log = logging.getLogger(__name__)
 
 
 class TagService:
+    @staticmethod
+    def extract_cover_from_audio_file(filepath: Path | str) -> Optional[bytes]:
+        """
+        Extracts embedded cover artwork bytes from an audio file (MP3 ID3 APIC, FLAC, M4A, OGG).
+        """
+        p = Path(filepath)
+        if not p.is_absolute() and settings.MUSIC_DIR.exists():
+            p = settings.MUSIC_DIR / filepath
+        if not p.exists():
+            return None
+
+        try:
+            ext = p.suffix.lower()
+            if ext == ".mp3":
+                from mutagen.id3 import ID3
+                try:
+                    tags = ID3(p)
+                    for key in tags.keys():
+                        if key.startswith("APIC"):
+                            return tags[key].data
+                except Exception:
+                    pass
+
+            elif ext == ".flac":
+                from mutagen.flac import FLAC
+                audio = FLAC(p)
+                if audio.pictures:
+                    return audio.pictures[0].data
+
+            elif ext in (".m4a", ".mp4"):
+                from mutagen.mp4 import MP4
+                audio = MP4(p)
+                covr = audio.tags.get("covr") if audio.tags else None
+                if covr and len(covr) > 0:
+                    return bytes(covr[0])
+
+            elif ext in (".ogg", ".oga", ".opus"):
+                from mutagen.oggvorbis import OggVorbis
+                import base64
+                from mutagen.flac import Picture
+                audio = OggVorbis(p)
+                pics = audio.get("metadata_block_picture")
+                if pics:
+                    pic_data = base64.b64decode(pics[0])
+                    pic = Picture(pic_data)
+                    return pic.data
+        except Exception as e:
+            log.warning(f"Erro ao extrair capa de {p}: {e}")
+
+        return None
+
     @staticmethod
     def read_audio_tags(filepath: str) -> Dict[str, Any]:
         """
@@ -60,60 +111,79 @@ class TagService:
 
         return tags
 
-    @staticmethod
-    def update_audio_tags(filepath: str, new_tags: Dict[str, Any]) -> Dict[str, Any]:
+    @classmethod
+    def update_audio_tags(cls, filepath: str, new_tags: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Writes updated tags directly to the audio file and updates swingmusic.db.
+        Writes updated tags to audio file (if enabled) and updates swingmusic.db.
+        Preserves / generates album cover thumbnails under new albumhash.
         """
         p = Path(filepath)
-        if not p.is_absolute() and settings.MUSIC_DIR.exists():
-            p = settings.MUSIC_DIR / filepath
+        if not p.exists() and settings.MUSIC_DIR.exists():
+            candidate = settings.MUSIC_DIR / p.name
+            if candidate.exists():
+                p = candidate
+            elif not p.is_absolute():
+                p = settings.MUSIC_DIR / filepath
 
-        if not p.exists():
-            return {"success": False, "error": f"Arquivo não encontrado: {filepath}"}
+        # 0. Detect old albumhash before updating
+        old_albumhash = ""
+        if settings.swingmusic_db_path.exists():
+            try:
+                with swing_db() as conn:
+                    row = conn.execute("SELECT albumhash FROM track WHERE filepath = ?;", (str(filepath),)).fetchone()
+                    if row:
+                        old_albumhash = row["albumhash"] or ""
+            except Exception:
+                pass
 
         try:
-            # 1. Update file tags via Mutagen
-            audio = mutagen.File(p, easy=True)
-            if audio is None:
-                # Try format specific
-                ext = p.suffix.lower()
-                if ext == ".mp3":
-                    try:
-                        audio = EasyID3(p)
-                    except Exception:
-                        audio = mutagen.File(p)
-                        audio.add_tags()
-                        audio = EasyID3(p)
-                elif ext == ".flac":
-                    audio = FLAC(p)
-                elif ext in (".m4a", ".mp4"):
-                    audio = MP4(p)
-                elif ext in (".ogg", ".oga"):
-                    audio = OggVorbis(p)
+            # 1. Update file tags via Mutagen if enabled by settings
+            custom_settings = settings.get_custom_settings()
+            embed_tags_enabled = custom_settings.get("embed_audio_tags", False)
 
-            if audio is not None:
-                if "title" in new_tags and new_tags["title"] is not None:
-                    audio["title"] = str(new_tags["title"])
-                if "artist" in new_tags and new_tags["artist"] is not None:
-                    audio["artist"] = str(new_tags["artist"])
-                if "album" in new_tags and new_tags["album"] is not None:
-                    audio["album"] = str(new_tags["album"])
-                if "albumartist" in new_tags and new_tags["albumartist"] is not None:
-                    audio["albumartist"] = str(new_tags["albumartist"])
-                if "year" in new_tags and new_tags["year"] is not None:
-                    audio["date"] = str(new_tags["year"])
-                if "tracknumber" in new_tags and new_tags["tracknumber"] is not None:
-                    audio["tracknumber"] = str(new_tags["tracknumber"])
-                if "genre" in new_tags and new_tags["genre"] is not None:
-                    audio["genre"] = str(new_tags["genre"])
+            if embed_tags_enabled:
+                try:
+                    audio = mutagen.File(p, easy=True)
+                    if audio is None:
+                        ext = p.suffix.lower()
+                        if ext == ".mp3":
+                            try:
+                                audio = EasyID3(p)
+                            except Exception:
+                                audio = mutagen.File(p)
+                                audio.add_tags()
+                                audio = EasyID3(p)
+                        elif ext == ".flac":
+                            audio = FLAC(p)
+                        elif ext in (".m4a", ".mp4"):
+                            audio = MP4(p)
+                        elif ext in (".ogg", ".oga"):
+                            audio = OggVorbis(p)
 
-                audio.save()
+                    if audio is not None:
+                        if "title" in new_tags and new_tags["title"] is not None:
+                            audio["title"] = str(new_tags["title"])
+                        if "artist" in new_tags and new_tags["artist"] is not None:
+                            audio["artist"] = str(new_tags["artist"])
+                        if "album" in new_tags and new_tags["album"] is not None:
+                            audio["album"] = str(new_tags["album"])
+                        if "albumartist" in new_tags and new_tags["albumartist"] is not None:
+                            audio["albumartist"] = str(new_tags["albumartist"])
+                        if "year" in new_tags and new_tags["year"] is not None:
+                            audio["date"] = str(new_tags["year"])
+                        if "tracknumber" in new_tags and new_tags["tracknumber"] is not None:
+                            audio["tracknumber"] = str(new_tags["tracknumber"])
+                        if "genre" in new_tags and new_tags["genre"] is not None:
+                            audio["genre"] = str(new_tags["genre"])
+
+                        audio.save()
+                except Exception as e:
+                    log.warning(f"Não foi possível gravar tags físicas em {p}: {e}")
 
             # 2. Update swingmusic.db track row if exists
+            albumhash = ""
             if settings.swingmusic_db_path.exists():
                 with swing_db() as conn:
-                    # Construct artist JSON objects and hashes
                     title = new_tags.get("title")
                     artist_str = new_tags.get("artist")
                     album_str = new_tags.get("album")
@@ -141,8 +211,16 @@ class TagService:
                                     "image": f"{create_hash(aname, decode=True)}.webp",
                                 })
 
-                    albumhash = create_hash(album_str, decode=True) if album_str else ""
-                    last_mod = os.path.getmtime(p)
+                    if album_str:
+                        clean_a = clean_album_title(album_str)
+                        if albumartists_list:
+                            albumhash = create_hash(clean_a, *(a["name"] for a in albumartists_list), decode=True)
+                        else:
+                            albumhash = create_hash(clean_a, decode=True)
+                    else:
+                        albumhash = ""
+
+                    last_mod = os.path.getmtime(p) if p.exists() else 0
 
                     update_fields = ["last_mod = ?"]
                     params = [last_mod]
@@ -157,10 +235,10 @@ class TagService:
                         params.append(albumhash)
                     if artist_str is not None:
                         update_fields.append("artists = ?")
-                        params.append(artist_str)
+                        params.append(json.dumps(artists_list) if artists_list else artist_str)
                     if albumartist_str is not None:
                         update_fields.append("albumartists = ?")
-                        params.append(albumartist_str)
+                        params.append(json.dumps(albumartists_list) if albumartists_list else albumartist_str)
                     if "year" in new_tags and new_tags["year"]:
                         try:
                             year_int = int(str(new_tags["year"])[:4])
@@ -195,7 +273,31 @@ class TagService:
                     conn.execute(query, params)
                     conn.commit()
 
-            return {"success": True, "filepath": str(filepath)}
+            # 3. Synchronize / preserve album cover thumbnails for new_albumhash
+            if albumhash:
+                new_has_cover = (settings.thumb_images_md / f"{albumhash}.webp").exists() or (settings.thumb_images_orig / f"{albumhash}.webp").exists()
+                if not new_has_cover:
+                    from services.image_service import ImageService
+                    # A. Try extracting directly from audio file
+                    cover_bytes = cls.extract_cover_from_audio_file(p)
+                    if cover_bytes:
+                        try:
+                            ImageService.process_and_save_album_cover(cover_bytes, albumhash)
+                        except Exception as e:
+                            log.warning(f"Erro ao processar capa extraída para novo albumhash {albumhash}: {e}")
+                    # B. Or fallback to copying from old_albumhash thumbnails
+                    elif old_albumhash:
+                        old_orig = settings.thumb_images_orig / f"{old_albumhash}.webp"
+                        old_lg = settings.thumb_images_lg / f"{old_albumhash}.webp"
+                        source_file = old_orig if old_orig.exists() else (old_lg if old_lg.exists() else None)
+                        if source_file and source_file.exists():
+                            try:
+                                old_bytes = source_file.read_bytes()
+                                ImageService.process_and_save_album_cover(old_bytes, albumhash)
+                            except Exception as e:
+                                log.warning(f"Erro ao migrar capa de {old_albumhash} para {albumhash}: {e}")
+
+            return {"success": True, "filepath": str(filepath), "albumhash": albumhash}
 
         except Exception as e:
             log.error(f"Erro ao salvar tags para {filepath}: {e}", exc_info=True)
