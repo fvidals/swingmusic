@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.6
 
 # ----------------------------------------------------
-# Stage 1: Build Vue 3 Frontend
+# Stage 1: Build Vue 3 Frontend (runs natively on build host)
 # ----------------------------------------------------
-FROM node:20-alpine AS frontend-builder
+FROM --platform=$BUILDPLATFORM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 
 COPY frontend/package*.json ./
