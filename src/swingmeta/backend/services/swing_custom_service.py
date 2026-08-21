@@ -281,24 +281,60 @@ class SwingCustomService:
       .avatar:hover .img img {
         opacity: 0.9;
       }
+
+      /* Profile avatar in Settings > Profile */
+      .profilesettings .profileavatar img.swingmeta-user-avatar {
+        width: 80px !important;
+        height: 80px !important;
+        min-width: 80px !important;
+        min-height: 80px !important;
+        border-radius: 50% !important;
+        object-fit: cover !important;
+        display: block !important;
+        margin-bottom: 0.5rem !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+      }
+
+      /* User card avatar in Settings > Accounts */
+      .accountsettings .usercard .userinfo img.swingmeta-user-avatar {
+        width: 47px !important;
+        height: 47px !important;
+        min-width: 47px !important;
+        min-height: 47px !important;
+        border-radius: 50% !important;
+        object-fit: cover !important;
+        display: block !important;
+        flex-shrink: 0 !important;
+      }
+
+      /* Login user card avatar */
+      .loginuser img.swingmeta-user-avatar {
+        width: 80px !important;
+        height: 80px !important;
+        border-radius: 50% !important;
+        object-fit: cover !important;
+        display: block !important;
+        margin: 0 auto 0.5rem auto !important;
+      }
     </style>
     <script id="swingmeta-avatar-patch">
       (function() {
         function applyCustomAvatar() {
-          var containers = document.querySelectorAll('.topnav .avatar .img.circular, .avatar .img.circular, .avatar .img');
-          if (!containers || containers.length === 0) return;
-
           var host = window.location.hostname || 'localhost';
           var isHttps = window.location.protocol === 'https:';
           var metaUrl = (isHttps ? 'https://' : 'http://') + host + ':1971/api/images/user/user_1.webp';
           var relativeUrl = '/api/images/user/user_1.webp';
+          var avatarSrc = metaUrl + '?t=' + Date.now();
 
-          containers.forEach(function(container) {
+          // 1. Top navigation avatar (.avatar .img)
+          var navContainers = document.querySelectorAll('.topnav .avatar .img, .avatar .img');
+          navContainers.forEach(function(container) {
             if (container.getAttribute('data-swingmeta-patched') === 'true') return;
             container.setAttribute('data-swingmeta-patched', 'true');
 
             var img = document.createElement('img');
-            img.src = metaUrl + '?t=' + Date.now();
+            img.src = avatarSrc;
+            img.className = 'swingmeta-user-avatar';
             img.style.width = '100%';
             img.style.height = '100%';
             img.style.objectFit = 'cover';
@@ -309,7 +345,6 @@ class SwingCustomService:
               container.innerHTML = '';
               container.appendChild(img);
             };
-
             img.onerror = function() {
               if (img.src.indexOf(':1971') !== -1) {
                 img.src = relativeUrl + '?t=' + Date.now();
@@ -317,6 +352,81 @@ class SwingCustomService:
                 container.removeAttribute('data-swingmeta-patched');
               }
             };
+          });
+
+          // 2. Settings > Profile (.profileavatar)
+          var profileContainers = document.querySelectorAll('.profileavatar, .profilesettings .profileavatar');
+          profileContainers.forEach(function(container) {
+            var svg = container.querySelector('svg');
+            if (svg && svg.getAttribute('data-swingmeta-patched') !== 'true') {
+              svg.setAttribute('data-swingmeta-patched', 'true');
+              var img = document.createElement('img');
+              img.src = avatarSrc;
+              img.className = 'swingmeta-user-avatar swingmeta-profile-avatar';
+
+              img.onload = function() {
+                if (svg.parentNode === container) {
+                  container.replaceChild(img, svg);
+                }
+              };
+              img.onerror = function() {
+                if (img.src.indexOf(':1971') !== -1) {
+                  img.src = relativeUrl + '?t=' + Date.now();
+                } else {
+                  svg.removeAttribute('data-swingmeta-patched');
+                }
+              };
+            }
+          });
+
+          // 3. Settings > Accounts (.accountsettings .usercard .userinfo)
+          var accountCards = document.querySelectorAll('.accountsettings .usercard .userinfo');
+          accountCards.forEach(function(container) {
+            var svg = container.querySelector('svg');
+            if (svg && svg.getAttribute('data-swingmeta-patched') !== 'true') {
+              svg.setAttribute('data-swingmeta-patched', 'true');
+              var img = document.createElement('img');
+              img.src = avatarSrc;
+              img.className = 'swingmeta-user-avatar';
+
+              img.onload = function() {
+                if (svg.parentNode === container) {
+                  container.replaceChild(img, svg);
+                }
+              };
+              img.onerror = function() {
+                if (img.src.indexOf(':1971') !== -1) {
+                  img.src = relativeUrl + '?t=' + Date.now();
+                } else {
+                  svg.removeAttribute('data-swingmeta-patched');
+                }
+              };
+            }
+          });
+
+          // 4. Login modal (.loginuser)
+          var loginUsers = document.querySelectorAll('.loginuser');
+          loginUsers.forEach(function(container) {
+            var svg = container.querySelector('svg');
+            if (svg && svg.getAttribute('data-swingmeta-patched') !== 'true') {
+              svg.setAttribute('data-swingmeta-patched', 'true');
+              var img = document.createElement('img');
+              img.src = avatarSrc;
+              img.className = 'swingmeta-user-avatar';
+
+              img.onload = function() {
+                if (svg.parentNode === container) {
+                  container.replaceChild(img, svg);
+                }
+              };
+              img.onerror = function() {
+                if (img.src.indexOf(':1971') !== -1) {
+                  img.src = relativeUrl + '?t=' + Date.now();
+                } else {
+                  svg.removeAttribute('data-swingmeta-patched');
+                }
+              };
+            }
           });
         }
 
@@ -326,7 +436,7 @@ class SwingCustomService:
         observer.observe(document.documentElement, { childList: true, subtree: true });
         window.addEventListener('DOMContentLoaded', applyCustomAvatar);
         window.addEventListener('load', applyCustomAvatar);
-        setInterval(applyCustomAvatar, 2000);
+        setInterval(applyCustomAvatar, 1500);
       })();
     </script>
     <!-- End SwingMeta Custom Avatar Patch -->"""
