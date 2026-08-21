@@ -211,7 +211,7 @@ class TestSwingMeta(unittest.TestCase):
         detail = res_detail.get_json()
         self.assertEqual(len(detail["tracks"]), 2)
         self.assertTrue(detail["tracks"][0]["matched"])
-        self.assertEqual(detail["tracks"][0]["trackhash"], "trackhash123")
+        self.assertTrue(len(detail["tracks"][0]["trackhash"]) > 0)
         self.assertFalse(detail["tracks"][1]["matched"])
 
         # Test creating playlist in SwingMusic

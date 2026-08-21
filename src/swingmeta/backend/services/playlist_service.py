@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from config import settings
 from database import swing_db, user_db
+from services.hash_utils import create_hash
 
 log = logging.getLogger(__name__)
 
@@ -148,13 +149,20 @@ class PlaylistService:
 
                 if row:
                     track_data = dict(row)
+                    artist_names_list = []
                     try:
-                        artists = json.loads(track_data["artists"]) if track_data["artists"] else []
-                        artist_names = ", ".join(a.get("name", "") for a in artists if isinstance(a, dict))
+                        artists = json.loads(track_data["artists"]) if track_data["artists"] and track_data["artists"].startswith("[") else ([track_data["artists"]] if track_data["artists"] else [])
+                        artist_names = ", ".join(a.get("name", "") if isinstance(a, dict) else str(a) for a in artists)
+                        artist_names_list = [a.get("name", "") if isinstance(a, dict) else str(a) for a in artists]
                     except Exception:
-                        artist_names = ""
+                        artist_names = str(track_data.get("artists") or "")
+                        artist_names_list = [artist_names] if artist_names else []
 
-                    thash = track_data.get("trackhash")
+                    # Compute SwingMusic in-memory runtime trackhash
+                    title = track_data.get("title") or ""
+                    album = track_data.get("album") or ""
+                    thash = create_hash(title, album, *artist_names_list) if title else track_data.get("trackhash")
+                    
                     if thash:
                         matched_hashes.append(thash)
 
