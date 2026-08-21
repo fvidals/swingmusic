@@ -215,3 +215,118 @@ class ImageService:
         if p.exists():
             return p
         return None
+
+    @classmethod
+    def process_and_save_album_cover(
+        cls,
+        image_bytes: bytes,
+        albumhash: str,
+    ) -> dict[str, Any]:
+        """
+        Processes an album cover image:
+        - crops to 1:1 center square
+        - resizes and saves in all 5 WebP sizes:
+          original, large (500x500), medium (256x256), small (128x128), xsmall (64x64)
+        - calculates dominant color and blurhash
+        - updates artistdata table (itemtype='album', itemhash='album'+albumhash)
+        """
+        try:
+            img = Image.open(io.BytesIO(image_bytes))
+        except Exception as e:
+            raise ValueError(f"Formato de imagem inválido: {e}")
+
+        # Convert to RGB
+        if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+            bg = Image.new("RGBA", img.size, (255, 255, 255, 0))
+            bg.paste(img, (0, 0), img.convert("RGBA"))
+            img = bg
+        else:
+            img = img.convert("RGB")
+
+        # Center square crop
+        width, height = img.size
+        if width != height:
+            min_dim = min(width, height)
+            left = (width - min_dim) // 2
+            top = (height - min_dim) // 2
+            right = left + min_dim
+            bottom = top + min_dim
+            img = img.crop((left, top, right, bottom))
+
+        filename = f"{albumhash}.webp"
+        orig_path = settings.thumb_images_orig / filename
+        lg_path = settings.thumb_images_lg / filename
+        md_path = settings.thumb_images_md / filename
+        sm_path = settings.thumb_images_sm / filename
+        xsm_path = settings.thumb_images_xsm / filename
+
+        # 1. Original size
+        img.save(orig_path, format="webp", quality=90)
+
+        # 2. Large (500x500)
+        lg_size = min(500, img.width)
+        img_lg = img.resize((lg_size, lg_size), Image.Resampling.LANCZOS)
+        img_lg.save(lg_path, format="webp", quality=90)
+
+        # 3. Medium (256x256)
+        img_md = img.resize((256, 256), Image.Resampling.LANCZOS)
+        img_md.save(md_path, format="webp", quality=85)
+
+        # 4. Small (128x128)
+        img_sm = img.resize((128, 128), Image.Resampling.LANCZOS)
+        img_sm.save(sm_path, format="webp", quality=80)
+
+        # 5. XSmall (64x64)
+        img_xsm = img.resize((64, 64), Image.Resampling.LANCZOS)
+        img_xsm.save(xsm_path, format="webp", quality=75)
+
+        # Extract dominant color and blurhash
+        colors = extract_dominant_colors(sm_path, count=1)
+        bhash = calculate_blurhash(sm_path)
+        primary_color = colors[0] if colors else "rgb(30, 30, 30)"
+
+        # Update artistdata in database
+        itemhash = f"album{albumhash}"
+        with user_db() as conn:
+            row = conn.execute(
+                "SELECT id, extra FROM artistdata WHERE itemhash = ?;",
+                (itemhash,),
+            ).fetchone()
+
+            extra_data = json.loads(row["extra"]) if row and row["extra"] else {}
+            if bhash:
+                extra_data["blurhash"] = bhash
+
+            if row:
+                conn.execute(
+                    """
+                    UPDATE artistdata
+                    SET color = ?, extra = ?
+                    WHERE itemhash = ?;
+                    """,
+                    (primary_color, json.dumps(extra_data), itemhash),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO artistdata (itemhash, itemtype, color, bio, info, extra)
+                    VALUES (?, 'album', ?, NULL, NULL, ?);
+                    """,
+                    (itemhash, primary_color, json.dumps(extra_data)),
+                )
+            conn.commit()
+
+        return {
+            "success": True,
+            "albumhash": albumhash,
+            "color": primary_color,
+            "blurhash": bhash,
+            "images": {
+                "original": f"/api/images/thumbnail/original/{filename}",
+                "large": f"/api/images/thumbnail/large/{filename}",
+                "medium": f"/api/images/thumbnail/medium/{filename}",
+                "small": f"/api/images/thumbnail/small/{filename}",
+                "xsmall": f"/api/images/thumbnail/xsmall/{filename}",
+            },
+        }
+

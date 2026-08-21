@@ -175,24 +175,132 @@ class OnlineSearchService:
 
         return results
 
-    @classmethod
-    def search_all_image_candidates(cls, artist_name: str) -> dict[str, Any]:
-        """
-        Aggregates image candidates from all available providers (Deezer, Spotify, etc.)
-        """
-        deezer_results = cls.search_deezer(artist_name)
-        spotify_results = cls.search_spotify(artist_name)
-        musicbrainz_results = cls.search_musicbrainz(artist_name)
-
-        all_images = []
-        for r in spotify_results:
-            all_images.append(r)
-        for r in deezer_results:
-            all_images.append(r)
-
         return {
             "query": artist_name,
             "images": all_images,
             "musicbrainz": musicbrainz_results,
             "spotify_configured": bool(settings.SPOTIFY_CLIENT_ID and settings.SPOTIFY_CLIENT_SECRET),
         }
+
+    @staticmethod
+    def search_deezer_albums(album_name: str, artist_name: str = "") -> List[dict[str, Any]]:
+        """
+        Searches Deezer for album covers.
+        """
+        results = []
+        try:
+            q = f"{artist_name} {album_name}".strip() if artist_name else album_name.strip()
+            query = urllib.parse.quote(q)
+            url = f"https://api.deezer.com/search/album?q={query}&limit=8"
+            headers = {"User-Agent": "SwingMeta/1.0"}
+            res = requests.get(url, headers=headers, timeout=10)
+            if res.status_code == 200:
+                data = res.json().get("data", [])
+                for item in data:
+                    img_url = item.get("cover_xl") or item.get("cover_big") or item.get("cover_medium")
+                    if img_url:
+                        results.append({
+                            "provider": "Deezer",
+                            "album": item.get("title"),
+                            "artist": item.get("artist", {}).get("name", ""),
+                            "image_url": img_url,
+                            "thumbnail_url": item.get("cover_medium") or img_url,
+                            "nb_tracks": item.get("nb_tracks", 0),
+                            "link": item.get("link", ""),
+                        })
+        except Exception as e:
+            log.warning(f"Erro na busca Deezer Album para '{album_name}': {e}")
+        return results
+
+    @staticmethod
+    def search_itunes_albums(album_name: str, artist_name: str = "") -> List[dict[str, Any]]:
+        """
+        Searches iTunes / Apple Music for high-resolution album covers.
+        """
+        results = []
+        try:
+            q = f"{artist_name} {album_name}".strip() if artist_name else album_name.strip()
+            query = urllib.parse.quote(q)
+            url = f"https://itunes.apple.com/search?term={query}&entity=album&limit=8"
+            headers = {"User-Agent": "SwingMeta/1.0"}
+            res = requests.get(url, headers=headers, timeout=10)
+            if res.status_code == 200:
+                data = res.json().get("results", [])
+                for item in data:
+                    raw_art = item.get("artworkUrl100", "")
+                    if raw_art:
+                        # Replace 100x100 with 1000x1000 for high resolution artwork
+                        hi_res = raw_art.replace("100x100bb.jpg", "1000x1000bb.jpg").replace("100x100bb.png", "1000x1000bb.png")
+                        results.append({
+                            "provider": "Apple Music",
+                            "album": item.get("collectionName", ""),
+                            "artist": item.get("artistName", ""),
+                            "image_url": hi_res,
+                            "thumbnail_url": raw_art,
+                            "track_count": item.get("trackCount", 0),
+                            "year": item.get("releaseDate", "")[:4] if item.get("releaseDate") else "",
+                            "genre": item.get("primaryGenreName", ""),
+                        })
+        except Exception as e:
+            log.warning(f"Erro na busca iTunes Album para '{album_name}': {e}")
+        return results
+
+    @classmethod
+    def search_spotify_albums(cls, album_name: str, artist_name: str = "") -> List[dict[str, Any]]:
+        """
+        Searches Spotify for album covers if credentials are set.
+        """
+        token = cls.get_spotify_token()
+        if not token:
+            return []
+
+        results = []
+        try:
+            q = f"{artist_name} {album_name}".strip() if artist_name else album_name.strip()
+            query = urllib.parse.quote(q)
+            url = f"https://api.spotify.com/v1/search?q={query}&type=album&limit=6"
+            headers = {"Authorization": f"Bearer {token}"}
+            res = requests.get(url, headers=headers, timeout=10)
+            if res.status_code == 200:
+                albums = res.json().get("albums", {}).get("items", [])
+                for item in albums:
+                    images = item.get("images", [])
+                    img_url = images[0]["url"] if images else None
+                    thumb_url = images[-1]["url"] if images else None
+                    artists = ", ".join(a.get("name", "") for a in item.get("artists", []))
+                    if img_url:
+                        results.append({
+                            "provider": "Spotify",
+                            "id": item.get("id"),
+                            "album": item.get("name"),
+                            "artist": artists,
+                            "image_url": img_url,
+                            "thumbnail_url": thumb_url or img_url,
+                            "total_tracks": item.get("total_tracks", 0),
+                            "release_date": item.get("release_date", ""),
+                            "link": item.get("external_urls", {}).get("spotify", ""),
+                        })
+        except Exception as e:
+            log.warning(f"Erro na busca Spotify Album para '{album_name}': {e}")
+        return results
+
+    @classmethod
+    def search_all_album_covers(cls, album_name: str, artist_name: str = "") -> dict[str, Any]:
+        """
+        Aggregates album cover candidates from all providers.
+        """
+        deezer = cls.search_deezer_albums(album_name, artist_name)
+        itunes = cls.search_itunes_albums(album_name, artist_name)
+        spotify = cls.search_spotify_albums(album_name, artist_name)
+
+        all_covers = []
+        all_covers.extend(spotify)
+        all_covers.extend(itunes)
+        all_covers.extend(deezer)
+
+        return {
+            "query": f"{artist_name} - {album_name}".strip(" -"),
+            "covers": all_covers,
+            "spotify_configured": bool(settings.SPOTIFY_CLIENT_ID and settings.SPOTIFY_CLIENT_SECRET),
+        }
+

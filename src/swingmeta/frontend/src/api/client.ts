@@ -93,18 +93,93 @@ export const api = {
     q?: string;
     artisthash?: string;
     albumhash?: string;
+    filter?: string;
     page?: number;
     limit?: number;
-  }): Promise<{ total: number; page: number; limit: number; total_pages: number; tracks: Track[] }> {
+  }): Promise<{
+    total: number;
+    page: number;
+    limit: number;
+    total_pages: number;
+    counts: { total: number; has_cover: number; no_cover: number };
+    tracks: Track[];
+  }> {
     const query = new URLSearchParams();
     if (params.q) query.append('q', params.q);
     if (params.artisthash) query.append('artisthash', params.artisthash);
     if (params.albumhash) query.append('albumhash', params.albumhash);
+    if (params.filter) query.append('filter', params.filter);
     if (params.page) query.append('page', params.page.toString());
     if (params.limit) query.append('limit', params.limit.toString());
 
     const res = await fetch(`${BASE_URL}/tracks?${query.toString()}`);
     if (!res.ok) throw new Error('Falha ao carregar faixas');
+    return res.json();
+  },
+
+  async searchAlbumCovers(album: string, artist?: string): Promise<{
+    query: string;
+    covers: import('../types').OnlineAlbumCoverCandidate[];
+    spotify_configured: boolean;
+  }> {
+    const query = new URLSearchParams({ album });
+    if (artist) query.append('artist', artist);
+    const res = await fetch(`${BASE_URL}/tracks/search-covers?${query.toString()}`);
+    if (!res.ok) throw new Error('Falha ao buscar capas online');
+    return res.json();
+  },
+
+  async uploadTrackCover(trackId: number, file: File): Promise<any> {
+    const form = new FormData();
+    form.append('image', file);
+    const res = await fetch(`${BASE_URL}/tracks/${trackId}/cover/upload`, {
+      method: 'POST',
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Erro ao enviar capa');
+    }
+    return res.json();
+  },
+
+  async applyTrackOnlineCover(trackId: number, imageUrl: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/tracks/${trackId}/cover/online`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_url: imageUrl }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Erro ao aplicar capa online');
+    }
+    return res.json();
+  },
+
+  async uploadAlbumCover(albumhash: string, file: File): Promise<any> {
+    const form = new FormData();
+    form.append('image', file);
+    const res = await fetch(`${BASE_URL}/tracks/album/${albumhash}/cover/upload`, {
+      method: 'POST',
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Erro ao enviar capa do álbum');
+    }
+    return res.json();
+  },
+
+  async applyAlbumOnlineCover(albumhash: string, imageUrl: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/tracks/album/${albumhash}/cover/online`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_url: imageUrl }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Erro ao aplicar capa online');
+    }
     return res.json();
   },
 

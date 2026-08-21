@@ -30,8 +30,8 @@ export interface AlbumSummary {
 export interface Track {
   id: number;
   title: string;
-  artists: any[];
-  albumartists?: any[];
+  artists: any;
+  albumartists?: any;
   album: string;
   albumhash: string;
   duration: number;
@@ -42,6 +42,23 @@ export interface Track {
   bitrate?: number;
   filepath: string;
   last_mod?: number;
+  has_cover?: boolean;
+  cover_url?: string | null;
+  cover_url_lg?: string | null;
+}
+
+export interface OnlineAlbumCoverCandidate {
+  provider: string;
+  album: string;
+  artist?: string;
+  image_url: string;
+  thumbnail_url: string;
+  nb_tracks?: number;
+  total_tracks?: number;
+  track_count?: number;
+  year?: string;
+  genre?: string;
+  link?: string;
 }
 
 export interface FileTags {

@@ -99,5 +99,35 @@ class Settings:
     def thumbnails_dir(self) -> Path:
         return self.images_dir / "thumbnails"
 
+    @property
+    def thumb_images_orig(self) -> Path:
+        p = self.images_dir / "thumbnails" / "original"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def thumb_images_lg(self) -> Path:
+        p = self.images_dir / "thumbnails" / "large"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def thumb_images_md(self) -> Path:
+        p = self.images_dir / "thumbnails" / "medium"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def thumb_images_sm(self) -> Path:
+        p = self.images_dir / "thumbnails" / "small"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def thumb_images_xsm(self) -> Path:
+        p = self.images_dir / "thumbnails" / "xsmall"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
 
 settings = Settings()
