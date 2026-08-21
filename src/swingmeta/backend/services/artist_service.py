@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import re
@@ -8,6 +9,40 @@ from database import swing_db, user_db
 from services.hash_utils import create_hash
 
 log = logging.getLogger(__name__)
+
+KNOWN_PLACEHOLDER_MD5 = {
+    # Deezer / SwingMusic default placeholder silhouettes
+    "49a5d317ed0eedc6c1d7cdbc42d2fd22",  # 500x500 large
+    "44ea537d85bf5c966c584b044d562e72",  # 500x500 large alt
+    "0a016037a46f675271501143faf70722",  # medium
+    "727257d93c7c1ddfe12ba3258cd2c86b",  # medium alt
+    "8e83759394785b36ebe584df29e01e77",  # small
+    "0b0793c22075523df33113a3fee28c65",  # small alt
+    "e38dc6041923df57beecbf4bebb32b91",  # swingmusic assets/artist.webp
+}
+
+
+def is_valid_artist_image(artisthash: str) -> tuple[bool, int]:
+    """
+    Checks if an artist has a REAL custom photo (not a generic placeholder/silhouette).
+    Returns (has_real_image, mtime_timestamp).
+    """
+    img_filename = f"{artisthash}.webp"
+    for folder in (settings.artist_images_lg, settings.artist_images_md, settings.artist_images_sm):
+        p = folder / img_filename
+        if p.exists():
+            try:
+                data = p.read_bytes()
+                if len(data) == 0:
+                    continue
+                h = hashlib.md5(data).hexdigest()
+                if h in KNOWN_PLACEHOLDER_MD5:
+                    return False, 0
+                mtime = int(p.stat().st_mtime)
+                return True, mtime
+            except Exception:
+                pass
+    return False, 0
 
 
 def extract_artists_from_raw(raw: Any) -> List[Dict[str, str]]:
@@ -141,11 +176,7 @@ class ArtistService:
         result = []
         for ahash, data in artist_map.items():
             img_filename = f"{ahash}.webp"
-            has_image = (
-                (settings.artist_images_lg / img_filename).exists()
-                or (settings.artist_images_md / img_filename).exists()
-                or (settings.artist_images_sm / img_filename).exists()
-            )
+            has_image, img_mtime = is_valid_artist_image(ahash)
 
             meta = meta_map.get(ahash, {})
             colors = []
@@ -170,8 +201,8 @@ class ArtistService:
                 "blurhash": blurhash_val,
                 "info": meta.get("info") or {},
                 "extra": meta.get("extra") or {},
-                "image": f"/api/images/artist/medium/{img_filename}" if has_image else None,
-                "image_lg": f"/api/images/artist/large/{img_filename}" if has_image else None,
+                "image": f"/api/images/artist/medium/{img_filename}?t={img_mtime}" if has_image else None,
+                "image_lg": f"/api/images/artist/large/{img_filename}?t={img_mtime}" if has_image else None,
             })
 
         # Sort alphabetically by default

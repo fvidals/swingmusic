@@ -7,7 +7,9 @@ images_bp = Blueprint("images", __name__, url_prefix="/api/images")
 
 
 @images_bp.route("/artist/<size>/<filename>", methods=["GET"])
+@images_bp.route("/artists/<size>/<filename>", methods=["GET"])
 @images_bp.route("/artist/<filename>", methods=["GET"])
+@images_bp.route("/artists/<filename>", methods=["GET"])
 def serve_artist_image(filename: str, size: str = "large"):
     """
     Serves artist image in requested size (small, medium, large).
