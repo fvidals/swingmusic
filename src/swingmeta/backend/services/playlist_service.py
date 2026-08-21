@@ -247,11 +247,17 @@ class PlaylistService:
             top = (height - min_dim) // 2
             img = img.crop((left, top, left + min_dim, top + min_dim))
 
-        # Resize to 512x512
+        # Resize to 512x512 for main banner/detail
         img_512 = img.resize((512, 512), Image.Resampling.LANCZOS)
         filename = f"pl_{playlist_id}_{int(time.time())}.webp"
         save_path = settings.playlist_images_dir / filename
         img_512.save(save_path, format="webp", quality=90)
+
+        # Resize to 250x250 for SwingMusic card/list thumbnails
+        img_250 = img.resize((250, 250), Image.Resampling.LANCZOS)
+        thumb_filename = f"thumb_{filename}"
+        thumb_path = settings.playlist_images_dir / thumb_filename
+        img_250.save(thumb_path, format="webp", quality=85)
 
         # Update playlist table
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -271,7 +277,8 @@ class PlaylistService:
         return {
             "success": True,
             "image": filename,
-            "image_url": f"/api/images/playlist/{filename}",
+            "thumb": thumb_filename,
+            "image_url": f"/api/images/playlist/{filename}?t={int(time.time())}",
         }
 
     @classmethod

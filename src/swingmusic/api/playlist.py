@@ -240,7 +240,7 @@ def get_playlist(path: PlaylistIDPath, query: GetPlaylistQuery):
         return {"msg": "Playlist not found"}, 404
 
     if query.limit == -1:
-        query.limit = len(playlist.trackhashes) - 1
+        query.limit = len(playlist.trackhashes)
 
     tracks = TrackStore.get_tracks_by_trackhashes(
         playlist.trackhashes[query.start : query.start + query.limit]
