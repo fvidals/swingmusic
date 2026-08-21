@@ -175,9 +175,24 @@ class OnlineSearchService:
 
         return results
 
+    @classmethod
+    def search_all_image_candidates(cls, artist_name: str) -> dict[str, Any]:
+        """
+        Aggregates image candidates from Deezer, Spotify, iTunes, and bio from MusicBrainz.
+        """
+        deezer_results = cls.search_deezer(artist_name)
+        spotify_results = cls.search_spotify(artist_name)
+        itunes_results = cls.search_itunes(artist_name)
+        musicbrainz_results = cls.search_musicbrainz(artist_name)
+
+        all_images = []
+        all_images.extend(deezer_results)
+        all_images.extend(spotify_results)
+
         return {
             "query": artist_name,
             "images": all_images,
+            "itunes": itunes_results,
             "musicbrainz": musicbrainz_results,
             "spotify_configured": bool(settings.SPOTIFY_CLIENT_ID and settings.SPOTIFY_CLIENT_SECRET),
         }
