@@ -81,6 +81,20 @@ function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+function formatYear(val: number | string | undefined | null): string {
+  if (!val) return '';
+  const num = typeof val === 'number' ? val : parseInt(val.toString(), 10);
+  if (isNaN(num)) return val.toString().slice(0, 4);
+  if (num > 100000) {
+    try {
+      return new Date(num * 1000).getUTCFullYear().toString();
+    } catch {
+      return num.toString();
+    }
+  }
+  return num.toString();
+}
+
 onMounted(() => {
   loadArtist();
 });
@@ -286,7 +300,7 @@ onMounted(() => {
                 </div>
               </div>
               <span class="font-semibold text-sm text-white truncate w-full">{{ album.title }}</span>
-              <span v-if="album.date" class="text-xs text-gray-400">{{ album.date }}</span>
+              <span v-if="album.date" class="text-xs text-gray-400">{{ formatYear(album.date) }}</span>
             </div>
           </div>
           <div v-else class="py-12 text-center text-gray-500 bg-surface rounded-2xl">

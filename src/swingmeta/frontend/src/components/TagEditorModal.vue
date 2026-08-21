@@ -18,6 +18,20 @@ const isSaving = ref(false);
 const errorMsg = ref('');
 const successMsg = ref('');
 
+function formatYearInput(val: number | string | undefined | null): string {
+  if (!val) return '';
+  const num = typeof val === 'number' ? val : parseInt(val.toString(), 10);
+  if (isNaN(num)) return val.toString();
+  if (num > 100000) {
+    try {
+      return new Date(num * 1000).getUTCFullYear().toString();
+    } catch {
+      return num.toString();
+    }
+  }
+  return num.toString();
+}
+
 const formData = ref<{
   title: string;
   artist: string;
@@ -31,7 +45,7 @@ const formData = ref<{
   artist: '',
   album: props.track.album || '',
   albumartist: '',
-  year: props.track.date ? String(props.track.date) : '',
+  year: formatYearInput(props.track.date),
   tracknumber: props.track.track ? String(props.track.track) : '',
   genre: props.track.genres || '',
 });
@@ -52,7 +66,7 @@ onMounted(async () => {
         artist: detail.file_tags.artist || '',
         album: detail.file_tags.album || props.track.album || '',
         albumartist: detail.file_tags.albumartist || '',
-        year: detail.file_tags.year || (props.track.date ? String(props.track.date) : ''),
+        year: detail.file_tags.year || formatYearInput(props.track.date),
         tracknumber: detail.file_tags.tracknumber || (props.track.track ? String(props.track.track) : ''),
         genre: detail.file_tags.genre || props.track.genres || '',
       };

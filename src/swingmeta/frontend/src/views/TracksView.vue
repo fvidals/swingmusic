@@ -48,6 +48,20 @@ function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+function formatYear(val: number | string | undefined | null): string {
+  if (!val) return '-';
+  const num = typeof val === 'number' ? val : parseInt(val.toString(), 10);
+  if (isNaN(num)) return val.toString().slice(0, 4);
+  if (num > 100000) {
+    try {
+      return new Date(num * 1000).getUTCFullYear().toString();
+    } catch {
+      return num.toString();
+    }
+  }
+  return num.toString();
+}
+
 function getArtistDisplay(track: Track): string {
   if (Array.isArray(track.artists)) {
     return track.artists.map(a => typeof a === 'object' ? a.name : a).join(', ');
@@ -147,7 +161,7 @@ onMounted(() => {
                 {{ track.album }}
               </td>
               <td class="px-5 py-3.5 text-gray-400">
-                {{ track.date || '-' }}
+                {{ formatYear(track.date) }}
               </td>
               <td class="px-5 py-3.5 text-gray-400">
                 {{ formatDuration(track.duration) }}
