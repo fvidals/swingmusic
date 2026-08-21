@@ -183,6 +183,53 @@ export const api = {
     return res.json();
   },
 
+  async applyBatchCover(
+    trackIds: number[],
+    options: {
+      file?: File;
+      imageUrl?: string;
+      imageBase64?: string;
+      embedAudio?: boolean;
+    }
+  ): Promise<{
+    success: boolean;
+    total_tracks: number;
+    updated_files: number;
+    updated_albums: number;
+    albumhashes: string[];
+  }> {
+    const embedAudio = options.embedAudio !== false;
+    let res: Response;
+
+    if (options.file) {
+      const form = new FormData();
+      form.append('image', options.file);
+      form.append('track_ids', JSON.stringify(trackIds));
+      form.append('embed_audio', embedAudio ? 'true' : 'false');
+      res = await fetch(`${BASE_URL}/tracks/batch-cover`, {
+        method: 'POST',
+        body: form,
+      });
+    } else {
+      res = await fetch(`${BASE_URL}/tracks/batch-cover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          track_ids: trackIds,
+          image_url: options.imageUrl,
+          image_base64: options.imageBase64,
+          embed_audio: embedAudio,
+        }),
+      });
+    }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Erro ao aplicar capa em lote');
+    }
+    return res.json();
+  },
+
   async getTrackDetail(trackId: number): Promise<{ database: Track; file_tags: FileTags }> {
     const res = await fetch(`${BASE_URL}/tracks/${trackId}`);
     if (!res.ok) throw new Error('Faixa não encontrada');
@@ -236,13 +283,30 @@ export const api = {
     return res.json();
   },
 
-  async uploadPlaylistCover(playlistId: number, file: File): Promise<any> {
-    const form = new FormData();
-    form.append('image', file);
-    const res = await fetch(`${BASE_URL}/playlists/${playlistId}/cover`, {
-      method: 'POST',
-      body: form,
-    });
+  async uploadPlaylistCover(playlistId: number, options: File | { file?: File; imageUrl?: string }): Promise<any> {
+    let res: Response;
+    if (options instanceof File) {
+      const form = new FormData();
+      form.append('image', options);
+      res = await fetch(`${BASE_URL}/playlists/${playlistId}/cover`, {
+        method: 'POST',
+        body: form,
+      });
+    } else if (options.file) {
+      const form = new FormData();
+      form.append('image', options.file);
+      res = await fetch(`${BASE_URL}/playlists/${playlistId}/cover`, {
+        method: 'POST',
+        body: form,
+      });
+    } else {
+      res = await fetch(`${BASE_URL}/playlists/${playlistId}/cover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: options.imageUrl }),
+      });
+    }
+
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Erro ao enviar capa da playlist');
@@ -257,11 +321,11 @@ export const api = {
     return res.json();
   },
 
-  async uploadUserAvatar(userId: number, imageBase64: string): Promise<any> {
+  async uploadUserAvatar(userId: number, imageBase64?: string, imageUrl?: string): Promise<any> {
     const res = await fetch(`${BASE_URL}/swingmusic/users/${userId}/avatar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_base64: imageBase64 }),
+      body: JSON.stringify({ image_base64: imageBase64, image_url: imageUrl }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

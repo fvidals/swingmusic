@@ -125,6 +125,29 @@ async function onUserAvatarSelected(userId: number, event: Event) {
   reader.readAsDataURL(file);
 }
 
+async function onUserAvatarUrlPrompt(userId: number) {
+  const user = users.value.find(u => u.id === userId);
+  const username = user?.username || 'usuário';
+  const url = prompt(`Cole a URL direta da imagem para o avatar de ${username} (JPG, PNG ou WebP):`);
+  if (!url || !url.trim()) return;
+
+  uploadingUserId.value = userId;
+  errorMsg.value = '';
+
+  try {
+    const res = await api.uploadUserAvatar(userId, undefined, url.trim());
+    showSuccess(`Foto do usuário ${username} atualizada com sucesso!`);
+    if (user) {
+      user.avatar_url = `${res.avatar_url}?t=${Date.now()}`;
+      user.has_custom_avatar = true;
+    }
+  } catch (err: any) {
+    showError(err.message || 'Erro ao aplicar foto da URL');
+  } finally {
+    uploadingUserId.value = null;
+  }
+}
+
 async function deleteAvatar(user: SwingUser) {
   if (!confirm(`Deseja remover a foto customizada do usuário ${user.username}?`)) return;
   try {
@@ -330,16 +353,27 @@ onMounted(() => {
 
           <!-- Bottom Actions -->
           <div class="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-xs">
-            <label class="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl cursor-pointer transition-all flex items-center space-x-1.5 font-medium">
-              <Upload class="w-3.5 h-3.5 text-accent" />
-              <span>Upload Foto</span>
-              <input
-                type="file"
-                accept="image/*"
-                class="hidden"
-                @change="onUserAvatarSelected(u.id, $event)"
-              />
-            </label>
+            <div class="flex items-center space-x-1.5">
+              <label class="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl cursor-pointer transition-all flex items-center space-x-1.5 font-medium">
+                <Upload class="w-3.5 h-3.5 text-accent" />
+                <span>Upload</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="onUserAvatarSelected(u.id, $event)"
+                />
+              </label>
+
+              <button
+                @click="onUserAvatarUrlPrompt(u.id)"
+                class="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl transition-all flex items-center space-x-1 font-medium"
+                title="Informar URL de imagem para o avatar"
+              >
+                <Globe class="w-3.5 h-3.5 text-accent" />
+                <span>URL</span>
+              </button>
+            </div>
 
             <div class="flex items-center space-x-1">
               <button

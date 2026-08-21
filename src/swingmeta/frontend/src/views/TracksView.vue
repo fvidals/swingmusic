@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import {
   Music,
   Search,
@@ -13,11 +13,16 @@ import {
   CheckCircle2,
   AlertCircle,
   Upload,
+  CheckSquare,
+  Square,
+  Layers,
+  X,
 } from 'lucide-vue-next';
 import { api } from '../api/client';
 import type { Track } from '../types';
 import TagEditorModal from '../components/TagEditorModal.vue';
 import OnlineCoverSearchModal from '../components/OnlineCoverSearchModal.vue';
+import BatchCoverModal from '../components/BatchCoverModal.vue';
 
 const tracks = ref<Track[]>([]);
 const totalTracks = ref(0);
@@ -33,9 +38,54 @@ const counts = ref({
   no_cover: 0,
 });
 
+// Selection & Modals
+const selectedTrackIds = ref<number[]>([]);
+const isBatchModalOpen = ref(false);
 const selectedTrackForTags = ref<Track | null>(null);
 const selectedTrackForCover = ref<Track | null>(null);
 let searchTimeout: any = null;
+
+// Computed for batch tracks
+const selectedTracksList = computed(() => {
+  return tracks.value.filter((t) => selectedTrackIds.value.includes(t.id));
+});
+
+const isAllVisibleSelected = computed(() => {
+  if (tracks.value.length === 0) return false;
+  return tracks.value.every((t) => selectedTrackIds.value.includes(t.id));
+});
+
+const isSomeVisibleSelected = computed(() => {
+  return tracks.value.some((t) => selectedTrackIds.value.includes(t.id)) && !isAllVisibleSelected.value;
+});
+
+function toggleSelectAllVisible() {
+  if (isAllVisibleSelected.value) {
+    // Deselect visible tracks
+    const visibleIds = new Set(tracks.value.map((t) => t.id));
+    selectedTrackIds.value = selectedTrackIds.value.filter((id) => !visibleIds.has(id));
+  } else {
+    // Select all visible tracks
+    const newSet = new Set(selectedTrackIds.value);
+    for (const t of tracks.value) {
+      newSet.add(t.id);
+    }
+    selectedTrackIds.value = Array.from(newSet);
+  }
+}
+
+function toggleTrackSelect(id: number) {
+  const idx = selectedTrackIds.value.indexOf(id);
+  if (idx > -1) {
+    selectedTrackIds.value.splice(idx, 1);
+  } else {
+    selectedTrackIds.value.push(id);
+  }
+}
+
+function clearSelection() {
+  selectedTrackIds.value = [];
+}
 
 async function loadTracks() {
   isLoading.value = true;
@@ -96,7 +146,7 @@ function formatYear(val: number | string | undefined | null): string {
 
 function getArtistDisplay(track: Track): string {
   if (Array.isArray(track.artists)) {
-    return track.artists.map(a => typeof a === 'object' ? a.name : a).join(', ');
+    return track.artists.map((a) => (typeof a === 'object' ? a.name : a)).join(', ');
   }
   if (typeof track.artists === 'string') {
     return track.artists;
@@ -109,6 +159,11 @@ function handleTagsUpdated() {
 }
 
 function handleCoverApplied() {
+  loadTracks();
+}
+
+function handleBatchApplied() {
+  clearSelection();
   loadTracks();
 }
 
@@ -134,7 +189,7 @@ onMounted(() => {
           Faixas & Capas de Álbuns
         </h1>
         <p class="text-sm text-gray-400 mt-1">
-          Gerencie capas (upload ou busca no Deezer/Spotify/Apple) e edite tags ID3 diretamente nos arquivos.
+          Gerencie capas (upload, URL direta ou busca online) e edite tags ID3 diretamente nos arquivos.
         </p>
       </div>
 
@@ -146,9 +201,9 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Filters & Search Bar -->
+    <!-- Filters, Search & Batch Actions Bar -->
     <div class="bg-surface rounded-2xl p-4 border border-white/5 space-y-4">
-      <!-- Filter Tabs -->
+      <!-- Filter Tabs & Batch Trigger -->
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center space-x-2">
           <button
@@ -187,8 +242,43 @@ onMounted(() => {
           </button>
         </div>
 
-        <div class="text-xs text-gray-400">
-          Mostrando <span class="text-white font-medium">{{ totalTracks }}</span> resultado(s)
+        <div class="flex items-center space-x-3">
+          <div class="text-xs text-gray-400">
+            Mostrando <span class="text-white font-medium">{{ totalTracks }}</span> resultado(s)
+          </div>
+        </div>
+      </div>
+
+      <!-- Batch Selection Floating / Contextual Bar -->
+      <div
+        v-if="selectedTrackIds.length > 0"
+        class="p-3 bg-accent/10 border border-accent/30 rounded-2xl flex flex-wrap items-center justify-between gap-3 animate-fade-in"
+      >
+        <div class="flex items-center space-x-2.5">
+          <div class="p-1.5 bg-accent text-black rounded-lg">
+            <CheckSquare class="w-4 h-4" />
+          </div>
+          <span class="text-sm font-bold text-white">
+            {{ selectedTrackIds.length }} {{ selectedTrackIds.length === 1 ? 'faixa selecionada' : 'faixas selecionadas' }}
+          </span>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <button
+            @click="isBatchModalOpen = true"
+            class="px-4 py-2 bg-accent text-black font-bold text-xs rounded-xl shadow-lg shadow-accent/20 hover:bg-accent/90 transition-all flex items-center space-x-2"
+          >
+            <ImageIcon class="w-4 h-4" />
+            <span>Capa em Lote</span>
+          </button>
+
+          <button
+            @click="clearSelection"
+            class="px-3 py-2 bg-surface-elevated hover:bg-white/10 text-gray-300 hover:text-white rounded-xl text-xs font-semibold border border-white/10 transition-colors flex items-center space-x-1"
+          >
+            <X class="w-3.5 h-3.5" />
+            <span>Limpar Seleção</span>
+          </button>
         </div>
       </div>
 
@@ -216,7 +306,18 @@ onMounted(() => {
         <table class="w-full text-left text-sm text-gray-300">
           <thead class="text-xs uppercase bg-surface-elevated text-gray-400 border-b border-white/5">
             <tr>
-              <th class="px-5 py-3.5">Capa</th>
+              <!-- Master Checkbox -->
+              <th class="px-4 py-3.5 w-10 text-center">
+                <input
+                  type="checkbox"
+                  :checked="isAllVisibleSelected"
+                  :indeterminate.prop="isSomeVisibleSelected"
+                  @change="toggleSelectAllVisible"
+                  class="w-4 h-4 rounded text-accent focus:ring-accent border-white/20 bg-surface cursor-pointer"
+                  title="Selecionar todas da página"
+                />
+              </th>
+              <th class="px-4 py-3.5">Capa</th>
               <th class="px-5 py-3.5">Título</th>
               <th class="px-5 py-3.5">Artista</th>
               <th class="px-5 py-3.5">Álbum</th>
@@ -229,10 +330,22 @@ onMounted(() => {
             <tr
               v-for="track in tracks"
               :key="track.id"
-              class="hover:bg-white/5 transition-colors group"
+              class="hover:bg-white/5 transition-colors group cursor-pointer"
+              :class="selectedTrackIds.includes(track.id) ? 'bg-accent/5' : ''"
+              @click="toggleTrackSelect(track.id)"
             >
+              <!-- Row Checkbox -->
+              <td class="px-4 py-3.5 text-center" @click.stop>
+                <input
+                  type="checkbox"
+                  :checked="selectedTrackIds.includes(track.id)"
+                  @change="toggleTrackSelect(track.id)"
+                  class="w-4 h-4 rounded text-accent focus:ring-accent border-white/20 bg-surface cursor-pointer"
+                />
+              </td>
+
               <!-- Cover Column -->
-              <td class="px-5 py-3.5">
+              <td class="px-4 py-3.5" @click.stop>
                 <div
                   @click="selectedTrackForCover = track"
                   class="w-10 h-10 rounded-lg overflow-hidden bg-surface-elevated relative cursor-pointer border border-white/10 group-hover:border-accent/40 transition-all flex-shrink-0 flex items-center justify-center shadow-inner"
@@ -289,13 +402,13 @@ onMounted(() => {
               </td>
 
               <!-- Actions -->
-              <td class="px-5 py-3.5 text-right">
+              <td class="px-5 py-3.5 text-right" @click.stop>
                 <div class="flex items-center justify-end space-x-1.5">
                   <!-- Manage Cover Button -->
                   <button
                     @click="selectedTrackForCover = track"
                     class="px-2.5 py-1.5 bg-white/5 hover:bg-accent/20 hover:text-accent border border-white/10 rounded-lg text-xs font-medium transition-all inline-flex items-center space-x-1"
-                    title="Buscar capa online no Deezer / Apple Music / Spotify ou fazer upload"
+                    title="Buscar capa online ou fazer upload"
                   >
                     <Sparkles class="w-3.5 h-3.5 text-accent" />
                     <span>Capa</span>
@@ -353,12 +466,20 @@ onMounted(() => {
       @updated="handleTagsUpdated"
     />
 
-    <!-- Online Cover Search & Upload Modal -->
+    <!-- Single Track Online Cover Search & Upload Modal -->
     <OnlineCoverSearchModal
       v-if="selectedTrackForCover"
       :track="selectedTrackForCover"
       @close="selectedTrackForCover = null"
       @applied="handleCoverApplied"
+    />
+
+    <!-- Batch Cover Modal -->
+    <BatchCoverModal
+      v-if="isBatchModalOpen && selectedTracksList.length > 0"
+      :selected-tracks="selectedTracksList"
+      @close="isBatchModalOpen = false"
+      @applied="handleBatchApplied"
     />
   </div>
 </template>

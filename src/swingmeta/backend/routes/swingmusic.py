@@ -21,35 +21,40 @@ def list_users():
     })
 
 
+from services.image_service import ImageService
+
+
 @swingmusic_bp.route("/users/<int:user_id>/avatar", methods=["POST"])
 def upload_user_avatar(user_id: int):
     """
-    Uploads a new avatar image for a user.
+    Uploads a new avatar image for a user (file, image_url, or image_base64).
     """
-    image_bytes = None
+    file_obj = request.files.get("file") or request.files.get("image")
+    image_url = None
+    image_base64 = None
 
-    if "file" in request.files:
-        uploaded_file = request.files["file"]
-        image_bytes = uploaded_file.read()
-    elif request.is_json:
-        data = request.get_json()
-        b64_data = data.get("image_base64", "")
-        if b64_data:
-            if "," in b64_data:
-                b64_data = b64_data.split(",", 1)[1]
-            try:
-                image_bytes = base64.b64decode(b64_data)
-            except Exception as e:
-                return jsonify({"error": f"Base64 inválido: {e}"}), 400
+    if request.is_json:
+        data = request.get_json() or {}
+        image_url = data.get("image_url")
+        image_base64 = data.get("image_base64")
+    else:
+        image_url = request.form.get("image_url")
+        image_base64 = request.form.get("image_base64")
 
-    if not image_bytes:
-        return jsonify({"error": "Nenhum arquivo de imagem enviado"}), 400
+    image_bytes, err = ImageService.resolve_image_bytes(
+        file_obj=file_obj,
+        image_url=image_url,
+        image_base64=image_base64,
+    )
+    if err or not image_bytes:
+        return jsonify({"error": err or "Nenhum arquivo ou URL de imagem fornecida"}), 400
 
     result = SwingCustomService.update_user_avatar(user_id, image_bytes)
     if not result.get("success"):
         return jsonify(result), 400
 
     return jsonify(result)
+
 
 
 @swingmusic_bp.route("/users/<int:user_id>/avatar", methods=["DELETE"])

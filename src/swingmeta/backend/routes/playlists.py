@@ -67,22 +67,38 @@ def delete_swing_playlist(playlist_id: int):
     return jsonify({"success": True})
 
 
+from services.image_service import ImageService
+
+
 @playlists_bp.route("/<int:playlist_id>/cover", methods=["POST"])
 def upload_playlist_cover(playlist_id: int):
     """
-    Uploads custom cover image for a SwingMusic playlist.
+    Uploads custom cover image for a SwingMusic playlist (file, image_url, or image_base64).
     """
-    if "image" not in request.files:
-        return jsonify({"error": "Nenhum arquivo de imagem enviado"}), 400
+    file_obj = request.files.get("image")
+    image_url = None
+    image_base64 = None
 
-    file = request.files["image"]
-    if not file.filename:
-        return jsonify({"error": "Arquivo vazio"}), 400
+    if request.is_json:
+        data = request.get_json() or {}
+        image_url = data.get("image_url")
+        image_base64 = data.get("image_base64")
+    else:
+        image_url = request.form.get("image_url")
+        image_base64 = request.form.get("image_base64")
 
-    image_bytes = file.read()
+    image_bytes, err = ImageService.resolve_image_bytes(
+        file_obj=file_obj,
+        image_url=image_url,
+        image_base64=image_base64,
+    )
+    if err or not image_bytes:
+        return jsonify({"error": err or "Nenhum arquivo ou URL de imagem fornecida"}), 400
+
     result = PlaylistService.upload_playlist_cover(playlist_id, image_bytes)
     if not result.get("success"):
         return jsonify(result), 400
 
     return jsonify(result)
+
 

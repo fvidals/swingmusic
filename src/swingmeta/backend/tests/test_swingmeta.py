@@ -263,6 +263,26 @@ class TestSwingMeta(unittest.TestCase):
         res_client = self.client.get("/api/swingmusic/client")
         self.assertEqual(res_client.status_code, 200)
 
+    def test_09_batch_cover_and_url(self):
+        """Test batch cover endpoint with base64/URL and track IDs"""
+        img = Image.new("RGB", (400, 400), color=(236, 72, 153))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64_str = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("utf-8")
+
+        res = self.client.post("/api/tracks/batch-cover", json={
+            "track_ids": [1],
+            "image_base64": b64_str,
+            "embed_audio": False,
+        })
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["total_tracks"], 1)
+        self.assertEqual(data["updated_albums"], 1)
+        self.assertTrue((settings.thumb_images_lg / "albumhash123.webp").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
+

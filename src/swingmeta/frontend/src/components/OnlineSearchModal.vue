@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { X, Search, Sparkles, Check, Loader2, ExternalLink, Globe } from 'lucide-vue-next';
+import { X, Search, Sparkles, Check, Loader2, ExternalLink, Globe, Link as LinkIcon } from 'lucide-vue-next';
 import { api } from '../api/client';
 import type { OnlineImageCandidate } from '../types';
 
@@ -18,11 +18,16 @@ const emit = defineEmits<{
 const searchQuery = ref(props.artistName);
 const isSearching = ref(false);
 const isApplying = ref(false);
+const applyingUrl = ref<string | null>(null);
 const candidates = ref<OnlineImageCandidate[]>([]);
 const mbResults = ref<any[]>([]);
 const spotifyConfigured = ref(false);
 const errorMsg = ref('');
 const successMsg = ref('');
+
+// Direct URL
+const customUrl = ref('');
+const showUrlRow = ref(false);
 
 async function performSearch() {
   if (!searchQuery.value.trim()) return;
@@ -44,6 +49,7 @@ async function performSearch() {
 async function applyImage(candidate: OnlineImageCandidate) {
   if (!candidate.image_url) return;
   isApplying.value = true;
+  applyingUrl.value = candidate.image_url;
   errorMsg.value = '';
 
   try {
@@ -54,6 +60,26 @@ async function applyImage(candidate: OnlineImageCandidate) {
     errorMsg.value = err.message || 'Falha ao aplicar imagem.';
   } finally {
     isApplying.value = false;
+    applyingUrl.value = null;
+  }
+}
+
+async function applyCustomUrl() {
+  const url = customUrl.value.trim();
+  if (!url) return;
+  isApplying.value = true;
+  applyingUrl.value = url;
+  errorMsg.value = '';
+
+  try {
+    const result = await api.applyOnlineImage(props.artisthash, url);
+    successMsg.value = 'Foto da URL aplicada com sucesso!';
+    emit('selected-image', result);
+  } catch (err: any) {
+    errorMsg.value = err.message || 'Falha ao aplicar imagem da URL.';
+  } finally {
+    isApplying.value = false;
+    applyingUrl.value = null;
   }
 }
 
@@ -63,7 +89,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
     <div class="bg-surface rounded-2xl border border-white/10 w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
       <!-- Header -->
       <div class="p-5 border-b border-white/10 flex items-center justify-between">
@@ -79,8 +105,8 @@ onMounted(() => {
         </button>
       </div>
 
-      <!-- Search Input -->
-      <div class="p-5 border-b border-white/5 bg-surface-elevated/40">
+      <!-- Search & URL Bar -->
+      <div class="p-5 border-b border-white/5 bg-surface-elevated/40 space-y-3">
         <form @submit.prevent="performSearch" class="flex space-x-2">
           <div class="relative flex-1">
             <Search class="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -102,11 +128,11 @@ onMounted(() => {
           </button>
         </form>
 
-        <div class="mt-2.5 flex items-center justify-between text-[11px] text-gray-400">
+        <div class="flex items-center justify-between text-[11px] text-gray-400">
           <div class="flex items-center space-x-3">
             <span class="flex items-center space-x-1 text-emerald-400">
               <Check class="w-3 h-3" />
-              <span>Deezer (Zero Config)</span>
+              <span>Deezer</span>
             </span>
             <span class="flex items-center space-x-1 text-emerald-400">
               <Check class="w-3 h-3" />
@@ -119,6 +145,38 @@ onMounted(() => {
               <Globe class="w-3 h-3" />
               <span>Spotify ({{ spotifyConfigured ? 'Ativo' : 'Opcional' }})</span>
             </span>
+          </div>
+
+          <button
+            type="button"
+            @click="showUrlRow = !showUrlRow"
+            class="text-xs text-accent hover:underline flex items-center space-x-1"
+          >
+            <LinkIcon class="w-3 h-3" />
+            <span>{{ showUrlRow ? 'Ocultar URL Direta' : 'Informar URL Direta' }}</span>
+          </button>
+        </div>
+
+        <!-- Direct URL input -->
+        <div v-if="showUrlRow" class="p-3 bg-black/30 rounded-xl border border-white/5 space-y-2 animate-fade-in">
+          <label class="text-[11px] text-gray-400 font-medium">Cole a URL de uma foto na web:</label>
+          <div class="flex items-center space-x-2">
+            <input
+              v-model="customUrl"
+              type="url"
+              placeholder="https://exemplo.com/foto-artista.jpg"
+              class="w-full bg-surface border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-accent"
+              @keyup.enter="applyCustomUrl"
+            />
+            <button
+              @click="applyCustomUrl"
+              :disabled="!customUrl.trim() || isApplying"
+              class="px-4 py-1.5 bg-accent text-black font-semibold rounded-xl text-xs hover:bg-accent/90 transition-all flex items-center space-x-1 disabled:opacity-40 flex-shrink-0"
+            >
+              <Loader2 v-if="isApplying && applyingUrl === customUrl.trim()" class="w-3.5 h-3.5 animate-spin" />
+              <Check v-else class="w-3.5 h-3.5" />
+              <span>Aplicar URL</span>
+            </button>
           </div>
         </div>
       </div>
@@ -148,80 +206,43 @@ onMounted(() => {
               class="group relative bg-surface-elevated rounded-xl p-3 border border-white/5 hover:border-accent/50 transition-all flex flex-col items-center text-center overflow-hidden"
             >
               <!-- Provider Badge -->
-              <div
-                class="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider shadow"
-                :class="cand.provider === 'Spotify' ? 'bg-[#1DB954] text-black' : 'bg-purple-600 text-white'"
-              >
+              <div class="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[10px] font-medium text-white">
                 {{ cand.provider }}
               </div>
 
-              <!-- Thumbnail -->
-              <div class="w-24 h-24 rounded-full overflow-hidden mb-2.5 bg-black/40 ring-1 ring-white/10">
+              <!-- Image -->
+              <div class="w-24 h-24 rounded-full overflow-hidden mb-3 border-2 border-white/10 group-hover:border-accent transition-colors shadow-inner">
                 <img
-                  :src="cand.thumbnail_url || cand.image_url"
-                  :alt="cand.name"
-                  class="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                  :src="cand.image_url"
+                  :alt="cand.provider"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  loading="lazy"
                 />
               </div>
 
-              <!-- Info -->
-              <span class="text-xs font-medium text-white truncate w-full">{{ cand.name }}</span>
-              <span v-if="cand.nb_fan" class="text-[10px] text-gray-400">{{ cand.nb_fan.toLocaleString() }} fãs</span>
-              <span v-else-if="cand.popularity" class="text-[10px] text-gray-400">Pop: {{ cand.popularity }}/100</span>
+              <div class="text-[11px] text-gray-400 mb-2 truncate w-full">
+                {{ cand.name || cand.provider }}
+              </div>
 
-              <!-- Apply Button -->
+              <!-- Action Button -->
               <button
                 @click="applyImage(cand)"
                 :disabled="isApplying"
-                class="mt-3 w-full py-1.5 bg-white/10 hover:bg-accent hover:text-black font-medium text-xs rounded-lg transition-all flex items-center justify-center space-x-1"
+                class="w-full py-1.5 bg-white/5 hover:bg-accent text-gray-300 hover:text-black border border-white/10 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1 disabled:opacity-50"
               >
-                <Check class="w-3.5 h-3.5" />
-                <span>Usar esta foto</span>
+                <Loader2 v-if="isApplying && applyingUrl === cand.image_url" class="w-3 h-3 animate-spin" />
+                <Check v-else class="w-3 h-3" />
+                <span>Usar Esta Foto</span>
               </button>
             </div>
           </div>
         </div>
 
-        <div v-else-if="!isSearching" class="py-12 text-center text-gray-400">
-          <p class="text-sm">Nenhuma foto encontrada para "{{ searchQuery }}". Tente ajustar o termo de busca.</p>
+        <!-- No Results -->
+        <div v-else-if="!isSearching && !errorMsg" class="py-16 text-center text-gray-500 space-y-2">
+          <Sparkles class="w-8 h-8 mx-auto text-gray-600" />
+          <p class="text-sm">Nenhuma foto encontrada. Tente buscar por outro termo ou use a opção de informar URL direta.</p>
         </div>
-
-        <!-- MusicBrainz metadata section -->
-        <div v-if="mbResults.length > 0" class="pt-4 border-t border-white/5 space-y-3">
-          <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Metadados da Comunidade (MusicBrainz)</h3>
-          <div class="space-y-2">
-            <div
-              v-for="mb in mbResults"
-              :key="mb.id"
-              class="p-3 bg-surface-elevated/70 rounded-xl border border-white/5 flex items-center justify-between text-xs"
-            >
-              <div>
-                <span class="font-medium text-white">{{ mb.name }}</span>
-                <span v-if="mb.country" class="ml-2 text-gray-400">({{ mb.country }})</span>
-                <span v-if="mb.disambiguation" class="block text-[11px] text-gray-400 mt-0.5">{{ mb.disambiguation }}</span>
-                <div v-if="mb.tags && mb.tags.length > 0" class="flex flex-wrap gap-1 mt-1.5">
-                  <span
-                    v-for="tag in mb.tags"
-                    :key="tag"
-                    class="px-1.5 py-0.5 bg-white/5 rounded text-[10px] text-gray-300"
-                  >
-                    {{ tag }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Footer -->
-      <div class="p-4 border-t border-white/10 bg-surface-elevated/40 flex justify-end">
-        <button
-          @click="emit('close')"
-          class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm font-medium rounded-xl transition-all"
-        >
-          Fechar
-        </button>
       </div>
     </div>
   </div>

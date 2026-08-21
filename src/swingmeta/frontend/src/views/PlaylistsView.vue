@@ -14,6 +14,8 @@ import {
   Check,
   Upload,
   Image as ImageIcon,
+  Globe,
+  Link as LinkIcon,
 } from 'lucide-vue-next';
 import { api } from '../api/client';
 import type { M3UPlaylist } from '../types';
@@ -104,6 +106,33 @@ async function handleCoverUpload(p: M3UPlaylist, e: Event) {
     }, 4000);
   } catch (err: any) {
     errorMsg.value = err.message || 'Erro ao enviar capa da playlist.';
+  } finally {
+    uploadingPlaylistId.value = null;
+  }
+}
+
+async function handleCoverUrlPrompt(p: M3UPlaylist) {
+  if (!p.swing_playlist?.id) return;
+  const url = prompt(`Cole a URL direta da imagem para a playlist "${p.name}" (JPG, PNG ou WebP):`);
+  if (!url || !url.trim()) return;
+
+  uploadingPlaylistId.value = p.swing_playlist.id;
+  errorMsg.value = '';
+  feedbackMsg.value = '';
+
+  try {
+    const res = await api.uploadPlaylistCover(p.swing_playlist.id, { imageUrl: url.trim() });
+    if (p.swing_playlist) {
+      p.swing_playlist.image = res.image;
+      p.swing_playlist.has_image = true;
+      p.swing_playlist.image_url = `${res.image_url}?t=${Date.now()}`;
+    }
+    feedbackMsg.value = `Capa da playlist "${p.name}" atualizada com sucesso!`;
+    setTimeout(() => {
+      feedbackMsg.value = '';
+    }, 4000);
+  } catch (err: any) {
+    errorMsg.value = err.message || 'Erro ao aplicar capa da URL.';
   } finally {
     uploadingPlaylistId.value = null;
   }
@@ -310,10 +339,21 @@ onMounted(() => {
             @click="triggerCoverUpload(p.swing_playlist.id)"
             :disabled="uploadingPlaylistId === p.swing_playlist.id"
             class="px-3 py-2 bg-white/5 hover:bg-white/15 text-white text-xs font-semibold rounded-xl border border-white/10 flex items-center space-x-1.5 transition-all"
-            title="Fazer upload de capa para a playlist"
+            title="Upload de arquivo de capa (.jpg, .png, .webp)"
           >
             <Upload class="w-3.5 h-3.5 text-accent" />
             <span>{{ uploadingPlaylistId === p.swing_playlist.id ? 'Enviando...' : 'Capa' }}</span>
+          </button>
+
+          <!-- Upload Cover via URL -->
+          <button
+            v-if="p.is_created_in_swing && p.swing_playlist?.id"
+            @click="handleCoverUrlPrompt(p)"
+            :disabled="uploadingPlaylistId === p.swing_playlist.id"
+            class="p-2 bg-white/5 hover:bg-white/15 text-white text-xs font-semibold rounded-xl border border-white/10 flex items-center transition-all"
+            title="Definir capa via URL direta da web"
+          >
+            <Globe class="w-3.5 h-3.5 text-accent" />
           </button>
 
           <button

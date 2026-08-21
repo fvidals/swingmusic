@@ -71,6 +71,45 @@ def calculate_blurhash(image_path: Path) -> str | None:
 
 class ImageService:
     @staticmethod
+    def resolve_image_bytes(
+        file_obj: Any = None,
+        image_url: Any = None,
+        image_base64: Any = None,
+    ) -> Tuple[Any, Any]:
+        """
+        Resolves image bytes from either an uploaded file, a direct URL, or base64 string.
+        Returns (bytes, error_message).
+        """
+        import base64
+        import requests
+
+        if file_obj and hasattr(file_obj, "read"):
+            data = file_obj.read()
+            if data:
+                return data, None
+
+        if image_url and str(image_url).strip():
+            url = str(image_url).strip()
+            try:
+                resp = requests.get(url, timeout=15, headers={"User-Agent": "SwingMeta/1.0"})
+                if resp.status_code != 200:
+                    return None, f"Falha ao baixar imagem da URL (HTTP {resp.status_code})"
+                return resp.content, None
+            except Exception as e:
+                return None, f"Erro ao acessar URL da imagem: {e}"
+
+        if image_base64 and str(image_base64).strip():
+            b64 = str(image_base64).strip()
+            if "," in b64:
+                b64 = b64.split(",", 1)[1]
+            try:
+                return base64.b64decode(b64), None
+            except Exception as e:
+                return None, f"Base64 inválido: {e}"
+
+        return None, "Nenhuma imagem fornecida (arquivo, URL ou base64)"
+
+    @staticmethod
     def process_and_save_artist_image(image_bytes: bytes, artisthash: str) -> dict[str, Any]:
         """
         Receives raw image bytes, crops to square if needed, resizes into:

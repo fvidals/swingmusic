@@ -265,16 +265,28 @@ def apply_track_online_cover(track_id: int):
 @tracks_bp.route("/album/<albumhash>/cover/upload", methods=["POST"])
 def upload_album_cover(albumhash: str):
     """
-    Upload manual cover for an album by albumhash.
+    Upload manual cover for an album by albumhash (file, image_url, or image_base64).
     """
-    if "image" not in request.files:
-        return jsonify({"error": "Nenhum arquivo enviado"}), 400
+    file_obj = request.files.get("image") or request.files.get("file")
+    image_url = None
+    image_base64 = None
 
-    file = request.files["image"]
-    if not file.filename:
-        return jsonify({"error": "Arquivo vazio"}), 400
+    if request.is_json:
+        data = request.get_json() or {}
+        image_url = data.get("image_url")
+        image_base64 = data.get("image_base64")
+    else:
+        image_url = request.form.get("image_url")
+        image_base64 = request.form.get("image_base64")
 
-    image_bytes = file.read()
+    image_bytes, err = ImageService.resolve_image_bytes(
+        file_obj=file_obj,
+        image_url=image_url,
+        image_base64=image_base64,
+    )
+    if err or not image_bytes:
+        return jsonify({"error": err or "Nenhum arquivo ou URL de imagem fornecida"}), 400
+
     try:
         res = ImageService.process_and_save_album_cover(image_bytes, albumhash)
         embedded_count = TagService.embed_cover_for_album(albumhash, image_bytes)
@@ -307,3 +319,63 @@ def apply_album_online_cover(albumhash: str):
     except Exception as e:
         log.error(f"Erro ao aplicar capa online: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@tracks_bp.route("/batch-cover", methods=["POST"])
+def batch_update_cover():
+    """
+    Applies a cover image to multiple tracks by their IDs.
+    Accepts multipart/form-data or application/json:
+    - track_ids: list of int
+    - image: file (multipart)
+    - image_url: string
+    - image_base64: string
+    - embed_audio: bool (default True)
+    """
+    track_ids = []
+    embed_audio = True
+    image_url = None
+    image_base64 = None
+    file_obj = None
+
+    if request.is_json:
+        data = request.get_json() or {}
+        track_ids = data.get("track_ids", [])
+        embed_audio = data.get("embed_audio", True)
+        image_url = data.get("image_url")
+        image_base64 = data.get("image_base64")
+    else:
+        file_obj = request.files.get("image")
+        raw_ids = request.form.get("track_ids")
+        if raw_ids:
+            try:
+                track_ids = json.loads(raw_ids) if raw_ids.startswith("[") else [int(x.strip()) for x in raw_ids.split(",") if x.strip()]
+            except Exception:
+                pass
+        embed_audio = request.form.get("embed_audio", "true").lower() in ("true", "1", "yes")
+        image_url = request.form.get("image_url")
+        image_base64 = request.form.get("image_base64")
+
+    if not track_ids:
+        return jsonify({"error": "Nenhuma faixa selecionada (track_ids é obrigatório)"}), 400
+
+    try:
+        track_ids = [int(tid) for tid in track_ids]
+    except Exception:
+        return jsonify({"error": "IDs de faixas inválidos"}), 400
+
+    image_bytes, err = ImageService.resolve_image_bytes(
+        file_obj=file_obj,
+        image_url=image_url,
+        image_base64=image_base64,
+    )
+    if err or not image_bytes:
+        return jsonify({"error": err or "Não foi possível carregar a imagem"}), 400
+
+    try:
+        res = TagService.embed_cover_for_tracks(track_ids, image_bytes, embed_audio=embed_audio)
+        return jsonify(res)
+    except Exception as e:
+        log.error(f"Erro ao aplicar capa em lote: {e}")
+        return jsonify({"error": str(e)}), 500
+

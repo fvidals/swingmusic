@@ -338,3 +338,49 @@ class TagService:
                 log.warning(f"Erro ao embutir capa nas faixas do álbum {albumhash}: {e}")
         return updated
 
+    @classmethod
+    def embed_cover_for_tracks(cls, track_ids: List[int], image_bytes: bytes, embed_audio: bool = True) -> Dict[str, Any]:
+        """
+        Embeds cover artwork into the given list of track IDs and updates album thumbnails.
+        """
+        from services.image_service import ImageService
+        if not track_ids:
+            return {"success": False, "error": "Nenhuma faixa informada"}
+
+        updated_files = 0
+        albumhashes = set()
+        
+        with swing_db() as conn:
+            placeholders = ",".join("?" for _ in track_ids)
+            rows = conn.execute(
+                f"SELECT id, filepath, albumhash FROM track WHERE id IN ({placeholders});",
+                track_ids,
+            ).fetchall()
+
+            for r in rows:
+                ahash = r["albumhash"]
+                if ahash:
+                    albumhashes.add(ahash)
+                fpath = r["filepath"]
+                if embed_audio and fpath:
+                    if cls.embed_cover_in_audio_file(fpath, image_bytes):
+                        updated_files += 1
+
+        # Process and save album thumbnails for all distinct albumhashes
+        updated_albums = 0
+        for ahash in albumhashes:
+            try:
+                ImageService.process_and_save_album_cover(image_bytes, ahash)
+                updated_albums += 1
+            except Exception as e:
+                log.warning(f"Erro ao salvar miniatura do álbum {ahash}: {e}")
+
+        return {
+            "success": True,
+            "total_tracks": len(rows),
+            "updated_files": updated_files,
+            "updated_albums": updated_albums,
+            "albumhashes": list(albumhashes),
+        }
+
+
