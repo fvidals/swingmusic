@@ -220,6 +220,9 @@ def upload_track_cover(track_id: int):
     image_bytes = file.read()
     try:
         res = ImageService.process_and_save_album_cover(image_bytes, albumhash)
+        # Embed physical cover into audio file(s)
+        embedded_count = TagService.embed_cover_for_album(albumhash, image_bytes)
+        res["embedded_tracks"] = embedded_count
         return jsonify(res)
     except Exception as e:
         log.error(f"Erro ao salvar capa do álbum {albumhash}: {e}")
@@ -251,6 +254,8 @@ def apply_track_online_cover(track_id: int):
             return jsonify({"error": f"Falha ao baixar imagem: HTTP {resp.status_code}"}), 400
 
         res = ImageService.process_and_save_album_cover(resp.content, albumhash)
+        embedded_count = TagService.embed_cover_for_album(albumhash, resp.content)
+        res["embedded_tracks"] = embedded_count
         return jsonify(res)
     except Exception as e:
         log.error(f"Erro ao aplicar capa online: {e}")
@@ -272,6 +277,8 @@ def upload_album_cover(albumhash: str):
     image_bytes = file.read()
     try:
         res = ImageService.process_and_save_album_cover(image_bytes, albumhash)
+        embedded_count = TagService.embed_cover_for_album(albumhash, image_bytes)
+        res["embedded_tracks"] = embedded_count
         return jsonify(res)
     except Exception as e:
         log.error(f"Erro ao salvar capa do álbum {albumhash}: {e}")
@@ -294,6 +301,8 @@ def apply_album_online_cover(albumhash: str):
             return jsonify({"error": f"Falha ao baixar imagem: HTTP {resp.status_code}"}), 400
 
         res = ImageService.process_and_save_album_cover(resp.content, albumhash)
+        embedded_count = TagService.embed_cover_for_album(albumhash, resp.content)
+        res["embedded_tracks"] = embedded_count
         return jsonify(res)
     except Exception as e:
         log.error(f"Erro ao aplicar capa online: {e}")

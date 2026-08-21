@@ -201,3 +201,119 @@ class TagService:
             "success_count": success_count,
             "results": results,
         }
+
+    @staticmethod
+    def embed_cover_in_audio_file(filepath: str, image_bytes: bytes) -> bool:
+        """
+        Embeds cover artwork directly into the physical audio file (MP3 ID3 APIC, FLAC, M4A, etc.).
+        """
+        p = Path(filepath)
+        if not p.is_absolute() and settings.MUSIC_DIR.exists():
+            p = settings.MUSIC_DIR / filepath
+
+        if not p.exists():
+            return False
+
+        try:
+            import io
+            from PIL import Image
+
+            # Prepare JPEG image for broad audio player compatibility
+            img = Image.open(io.BytesIO(image_bytes))
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+
+            # Crop to 1:1 square
+            width, height = img.size
+            if width != height:
+                min_dim = min(width, height)
+                left = (width - min_dim) // 2
+                top = (height - min_dim) // 2
+                img = img.crop((left, top, left + min_dim, top + min_dim))
+
+            # Resize if larger than 1200x1200 for embedded tag performance
+            if img.width > 1200:
+                img = img.resize((1200, 1200), Image.Resampling.LANCZOS)
+
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=90)
+            jpeg_data = buf.getvalue()
+
+            ext = p.suffix.lower()
+            if ext == ".mp3":
+                from mutagen.id3 import ID3, APIC, error
+                try:
+                    tags = ID3(p)
+                except error:
+                    tags = ID3()
+                tags.delall("APIC")
+                tags.add(APIC(
+                    encoding=3,
+                    mime="image/jpeg",
+                    type=3,  # Front cover
+                    desc="Cover",
+                    data=jpeg_data,
+                ))
+                tags.save(p, v2_version=3)
+                return True
+
+            elif ext == ".flac":
+                from mutagen.flac import FLAC, Picture
+                audio = FLAC(p)
+                pic = Picture()
+                pic.type = 3
+                pic.mime = "image/jpeg"
+                pic.desc = "Cover"
+                pic.data = jpeg_data
+                audio.clear_pictures()
+                audio.add_picture(pic)
+                audio.save()
+                return True
+
+            elif ext in (".m4a", ".mp4"):
+                from mutagen.mp4 import MP4, MP4Cover
+                audio = MP4(p)
+                audio["covr"] = [MP4Cover(jpeg_data, imageformat=MP4Cover.FORMAT_JPEG)]
+                audio.save()
+                return True
+
+            elif ext in (".ogg", ".oga"):
+                import base64
+                from mutagen.flac import Picture
+                from mutagen.oggvorbis import OggVorbis
+                audio = OggVorbis(p)
+                pic = Picture()
+                pic.type = 3
+                pic.mime = "image/jpeg"
+                pic.desc = "Cover"
+                pic.data = jpeg_data
+                encoded = base64.b64encode(pic.write()).decode("ascii")
+                audio["metadata_block_picture"] = [encoded]
+                audio.save()
+                return True
+
+        except Exception as e:
+            log.warning(f"Erro ao embutir capa no arquivo de áudio {filepath}: {e}")
+            return False
+
+        return False
+
+    @classmethod
+    def embed_cover_for_album(cls, albumhash: str, image_bytes: bytes) -> int:
+        """
+        Embeds cover artwork into all tracks belonging to the given albumhash in swingmusic.db.
+        Returns the number of files successfully updated.
+        """
+        updated = 0
+        if settings.swingmusic_db_path.exists():
+            try:
+                with swing_db() as conn:
+                    rows = conn.execute("SELECT filepath FROM track WHERE albumhash = ?;", (albumhash,)).fetchall()
+                    for r in rows:
+                        fpath = r["filepath"]
+                        if fpath and cls.embed_cover_in_audio_file(fpath, image_bytes):
+                            updated += 1
+            except Exception as e:
+                log.warning(f"Erro ao embutir capa nas faixas do álbum {albumhash}: {e}")
+        return updated
+
