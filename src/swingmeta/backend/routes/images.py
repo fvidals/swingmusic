@@ -23,7 +23,9 @@ def serve_artist_image(filename: str, size: str = "large"):
     if not file_path.exists():
         abort(404)
 
-    return send_from_directory(str(folder), filename, max_age=86400)
+    response = send_from_directory(str(folder), filename, max_age=0)
+    response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
 
 
 @images_bp.route("/thumbnail/<size>/<filename>", methods=["GET"])
@@ -40,7 +42,10 @@ def serve_thumbnail(filename: str, size: str = "medium"):
     if not file_path.exists():
         abort(404)
 
-    return send_from_directory(str(folder), filename, max_age=86400)
+    response = send_from_directory(str(folder), filename, max_age=0)
+    response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
+
 
 
 @images_bp.route("/user/<filename>", methods=["GET"])

@@ -28,6 +28,7 @@ const artisthash = ref(route.params.artisthash as string);
 const artist = ref<ArtistDetail | null>(null);
 const isLoading = ref(true);
 const errorMsg = ref('');
+const imageKey = ref(Date.now());
 
 const showOnlineModal = ref(false);
 const activeTab = ref<'albums' | 'tracks' | 'upload' | 'bio'>('upload');
@@ -40,24 +41,35 @@ const dominantColor = computed(() => {
   return '#1e1e1e';
 });
 
-async function loadArtist() {
-  isLoading.value = true;
+async function loadArtist(showLoading = true) {
+  if (showLoading) isLoading.value = true;
   errorMsg.value = '';
   try {
     artist.value = await api.getArtist(artisthash.value);
   } catch (err: any) {
     errorMsg.value = err.message || 'Erro ao carregar artista';
   } finally {
-    isLoading.value = false;
+    if (showLoading) isLoading.value = false;
   }
 }
 
-function handleImageUploaded(result: any) {
-  loadArtist();
+async function handleImageUploaded(result?: any) {
+  imageKey.value = Date.now();
+  await loadArtist(false);
+  if (artist.value) {
+    artist.value.has_image = true;
+    if (result?.colors && result.colors.length > 0) {
+      artist.value.colors = result.colors;
+    }
+  }
 }
 
-function handleImageDeleted() {
-  loadArtist();
+async function handleImageDeleted() {
+  imageKey.value = Date.now();
+  await loadArtist(false);
+  if (artist.value) {
+    artist.value.has_image = false;
+  }
 }
 
 function handleBioSaved(newBio: string) {
@@ -139,7 +151,7 @@ onMounted(() => {
         <div class="relative group w-36 h-36 sm:w-44 sm:h-44 rounded-full overflow-hidden shadow-2xl ring-4 ring-white/10 flex-shrink-0 bg-surface">
           <img
             v-if="artist.has_image && artist.image_lg"
-            :src="artist.image_lg"
+            :src="`${artist.image_lg}?t=${imageKey}`"
             :alt="artist.name"
             class="w-full h-full object-cover"
           />
@@ -264,7 +276,7 @@ onMounted(() => {
 
           <ImageUploader
             :artisthash="artist.artisthash"
-            :current-image="artist.image"
+            :current-image="artist.image ? `${artist.image}?t=${imageKey}` : null"
             @uploaded="handleImageUploaded"
             @deleted="handleImageDeleted"
           />
@@ -359,7 +371,7 @@ onMounted(() => {
       :artisthash="artist.artisthash"
       :artist-name="artist.name"
       @close="showOnlineModal = false"
-      @selected-image="loadArtist(); showOnlineModal = false"
+      @selected-image="handleImageUploaded($event); showOnlineModal = false"
     />
 
     <TagEditorModal
