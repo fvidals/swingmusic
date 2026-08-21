@@ -32,9 +32,12 @@ def swing_db() -> Generator[sqlite3.Connection, None, None]:
 @contextlib.contextmanager
 def user_db() -> Generator[sqlite3.Connection, None, None]:
     """
-    Context manager for userdata.db
+    Context manager for userdata tables (artistdata, user, playlist).
+    Uses userdata.db if it exists as a separate file, or falls back to swingmusic.db
+    where all tables live in modern SwingMusic.
     """
-    conn = get_db_connection(settings.userdata_db_path)
+    db_path = settings.userdata_db_path if settings.userdata_db_path.exists() else settings.swingmusic_db_path
+    conn = get_db_connection(db_path)
     try:
         yield conn
     finally:
@@ -43,9 +46,10 @@ def user_db() -> Generator[sqlite3.Connection, None, None]:
 
 def ensure_database_tables():
     """
-    Ensures that the required tables exist in userdata.db if it is a fresh install.
+    Ensures that the required tables exist in userdata / swingmusic database.
     """
-    if settings.userdata_db_path.exists():
+    db_path = settings.userdata_db_path if settings.userdata_db_path.exists() else settings.swingmusic_db_path
+    if db_path.exists():
         with user_db() as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS artistdata (

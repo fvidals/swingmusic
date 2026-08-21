@@ -40,22 +40,20 @@ class Settings:
         """
         Determines the actual config dir.
         If /config exists or SWING_CONFIG_DIR was specified, use that.
-        Otherwise falls back to ~/.swingmusic or ~/.config/swingmusic.
+        Otherwise falls back to ~/.swingmusic or ~/.config/swingmusic or subfolder swingmusic.
         """
-        if self.CONFIG_DIR.exists() and (
-            (self.CONFIG_DIR / "swingmusic.db").exists()
-            or (self.CONFIG_DIR / "userdata.db").exists()
-            or (self.CONFIG_DIR / "images").exists()
-        ):
-            return self.CONFIG_DIR
+        # 1. Direct swingmusic.db inside CONFIG_DIR
+        if self.CONFIG_DIR.exists():
+            if (self.CONFIG_DIR / "swingmusic.db").exists():
+                return self.CONFIG_DIR
+            if (self.CONFIG_DIR / "swingmusic" / "swingmusic.db").exists():
+                return self.CONFIG_DIR / "swingmusic"
+            if (self.CONFIG_DIR / ".swingmusic" / "swingmusic.db").exists():
+                return self.CONFIG_DIR / ".swingmusic"
+            if (self.CONFIG_DIR / "images").exists() or (self.CONFIG_DIR / "userdata.db").exists():
+                return self.CONFIG_DIR
 
-        # Check subfolder `swingmusic` or `.swingmusic` under CONFIG_DIR
-        if (self.CONFIG_DIR / "swingmusic").exists():
-            return self.CONFIG_DIR / "swingmusic"
-        if (self.CONFIG_DIR / ".swingmusic").exists():
-            return self.CONFIG_DIR / ".swingmusic"
-
-        # Check user home
+        # 2. Check user home
         home = Path.home().resolve()
         for candidate in [
             home / ".swingmusic",

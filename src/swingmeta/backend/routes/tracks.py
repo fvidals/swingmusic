@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, request
 
 from config import settings
 from database import swing_db
+from services.artist_service import ArtistService
 from services.tag_service import TagService
 
 log = logging.getLogger(__name__)
@@ -28,8 +29,15 @@ def get_tracks():
     params = []
 
     if artist_hash:
-        query += " AND (artists LIKE ? OR albumartists LIKE ?)"
-        params.extend([f"%{artist_hash}%", f"%{artist_hash}%"])
+        # Find artist name from hash
+        all_artists = ArtistService.get_all_artists()
+        target_artist = next((a for a in all_artists if a["artisthash"] == artist_hash), None)
+        if target_artist:
+            query += " AND (artists LIKE ? OR albumartists LIKE ?)"
+            params.extend([f"%{target_artist['name']}%", f"%{target_artist['name']}%"])
+        else:
+            query += " AND (artists LIKE ? OR albumartists LIKE ?)"
+            params.extend([f"%{artist_hash}%", f"%{artist_hash}%"])
 
     if album_hash:
         query += " AND albumhash = ?"

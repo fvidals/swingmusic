@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from config import settings
@@ -9,12 +10,64 @@ from services.hash_utils import create_hash
 log = logging.getLogger(__name__)
 
 
+def extract_artists_from_raw(raw: Any) -> List[Dict[str, str]]:
+    """
+    Extracts artist names and calculates their artisthash from various representations:
+    - Plain string: "The Offspring", "CPM 22 / Charlie Brown Jr.", "Artist 1, Artist 2", "Artist 1; Artist 2"
+    - JSON list of dicts: [{"name": "Queen", "artisthash": "..."}]
+    - JSON list of strings: ["Queen", "David Bowie"]
+    """
+    if not raw:
+        return []
+
+    # 1. If already a list
+    if isinstance(raw, list):
+        items = []
+        for item in raw:
+            if isinstance(item, dict) and "name" in item:
+                name = str(item["name"]).strip()
+                if name:
+                    ahash = item.get("artisthash") or create_hash(name, decode=True)
+                    items.append({"name": name, "artisthash": ahash})
+            elif isinstance(item, str) and item.strip():
+                name = item.strip()
+                items.append({"name": name, "artisthash": create_hash(name, decode=True)})
+        return items
+
+    # 2. If string
+    if isinstance(raw, str):
+        raw_str = raw.strip()
+        if not raw_str:
+            return []
+
+        # Check if JSON string
+        if (raw_str.startswith("[") and raw_str.endswith("]")) or (raw_str.startswith("{") and raw_str.endswith("}")):
+            try:
+                parsed = json.loads(raw_str)
+                if isinstance(parsed, (list, dict)):
+                    return extract_artists_from_raw(parsed)
+            except Exception:
+                pass
+
+        # Split plain string by common music separators (, / ; & feat. ft.)
+        # Protects AC/DC from being split
+        parts = re.split(r'[,;&]|\bfeat\.?\b|\bft\.?\b|(?<!AC)\/(?!DC)', raw_str, flags=re.IGNORECASE)
+        items = []
+        for p in parts:
+            name = p.strip()
+            if name:
+                items.append({"name": name, "artisthash": create_hash(name, decode=True)})
+        return items
+
+    return []
+
+
 class ArtistService:
     @staticmethod
     def get_all_artists() -> List[Dict[str, Any]]:
         """
         Extracts and aggregates all artists from swingmusic.db track table,
-        joined with metadata from userdata.db.
+        joined with metadata from userdata/swingmusic database.
         """
         if not settings.swingmusic_db_path.exists():
             return []
@@ -28,33 +81,25 @@ class ArtistService:
                 FROM track;
             """)
             for row in cursor.fetchall():
-                try:
-                    artists_data = json.loads(row["artists"]) if row["artists"] else []
-                except Exception:
-                    artists_data = []
-
-                try:
-                    album_artists_data = json.loads(row["albumartists"]) if row["albumartists"] else []
-                except Exception:
-                    album_artists_data = []
+                artists_list = extract_artists_from_raw(row["artists"])
+                album_artists_list = extract_artists_from_raw(row["albumartists"])
 
                 combined_artists = []
-                for a in artists_data:
-                    if isinstance(a, dict) and "name" in a:
+                seen_in_track = set()
+                for a in artists_list + album_artists_list:
+                    ahash = a["artisthash"]
+                    if ahash not in seen_in_track:
+                        seen_in_track.add(ahash)
                         combined_artists.append(a)
-                for a in album_artists_data:
-                    if isinstance(a, dict) and "name" in a:
-                        if not any(ca.get("artisthash") == a.get("artisthash") for ca in combined_artists):
-                            combined_artists.append(a)
 
                 albumhash = row["albumhash"] or ""
                 duration = row["duration"] or 0
 
                 for a in combined_artists:
-                    name = a.get("name", "").strip()
+                    name = a["name"].strip()
                     if not name:
                         continue
-                    ahash = a.get("artisthash") or create_hash(name, decode=True)
+                    ahash = a["artisthash"]
 
                     if ahash not in artist_map:
                         artist_map[ahash] = {
@@ -63,7 +108,6 @@ class ArtistService:
                             "album_hashes": set(),
                             "track_count": 0,
                             "duration": 0,
-                            "genres": set(),
                         }
 
                     entry = artist_map[ahash]
@@ -72,27 +116,26 @@ class ArtistService:
                     if albumhash:
                         entry["album_hashes"].add(albumhash)
 
-        # 2. Query userdata.db for bio, color, and extra info
+        # 2. Query artistdata table (color, bio, info, extra)
         meta_map: Dict[str, Dict[str, Any]] = {}
-        if settings.userdata_db_path.exists():
-            with user_db() as conn:
-                try:
-                    cursor = conn.execute("""
-                        SELECT itemhash, color, bio, info, extra
-                        FROM artistdata
-                        WHERE itemtype = 'artist' OR itemhash LIKE 'artist%';
-                    """)
-                    for row in cursor.fetchall():
-                        ihash = row["itemhash"]
-                        ahash = ihash.replace("artist", "")
-                        meta_map[ahash] = {
-                            "color": row["color"],
-                            "bio": row["bio"],
-                            "info": json.loads(row["info"]) if row["info"] else {},
-                            "extra": json.loads(row["extra"]) if row["extra"] else {},
-                        }
-                except Exception as e:
-                    log.warning(f"Erro ao ler artistdata do userdata.db: {e}")
+        with user_db() as conn:
+            try:
+                cursor = conn.execute("""
+                    SELECT itemhash, color, bio, info, extra
+                    FROM artistdata
+                    WHERE itemtype = 'artist' OR itemhash LIKE 'artist%';
+                """)
+                for row in cursor.fetchall():
+                    ihash = row["itemhash"]
+                    ahash = ihash.replace("artist", "")
+                    meta_map[ahash] = {
+                        "color": row["color"],
+                        "bio": row["bio"],
+                        "info": json.loads(row["info"]) if row["info"] else {},
+                        "extra": json.loads(row["extra"]) if row["extra"] else {},
+                    }
+            except Exception as e:
+                log.warning(f"Erro ao ler artistdata: {e}")
 
         # 3. Build final artist list with image check
         result = []
@@ -108,7 +151,7 @@ class ArtistService:
             colors = []
             if meta.get("color"):
                 try:
-                    colors = json.loads(meta["color"]) if isinstance(meta["color"], str) else meta["color"]
+                    colors = json.loads(meta["color"]) if isinstance(meta["color"], str) and meta["color"].startswith("[") else [meta["color"]]
                 except Exception:
                     colors = [meta["color"]]
 
@@ -148,27 +191,29 @@ class ArtistService:
 
         tracks = []
         album_dict = {}
+        target_name = artist["name"].lower()
 
         if settings.swingmusic_db_path.exists():
             with swing_db() as conn:
                 cursor = conn.execute("""
                     SELECT id, title, artists, albumartists, album, albumhash, duration,
                            track, disc, date, genres, bitrate, filepath
-                    FROM track
-                    WHERE artists LIKE ? OR albumartists LIKE ?;
-                """, (f"%{artisthash}%", f"%{artisthash}%"))
+                    FROM track;
+                """)
 
                 for row in cursor.fetchall():
                     t_data = dict(row)
-                    tracks.append(t_data)
-                    ahash = t_data.get("albumhash")
-                    if ahash and ahash not in album_dict:
-                        album_dict[ahash] = {
-                            "albumhash": ahash,
-                            "title": t_data.get("album"),
-                            "date": t_data.get("date"),
-                            "cover": f"/api/images/thumbnail/medium/{ahash}.webp",
-                        }
+                    combined = extract_artists_from_raw(t_data.get("artists")) + extract_artists_from_raw(t_data.get("albumartists"))
+                    if any(a["artisthash"] == artisthash or a["name"].lower() == target_name for a in combined):
+                        tracks.append(t_data)
+                        ahash = t_data.get("albumhash")
+                        if ahash and ahash not in album_dict:
+                            album_dict[ahash] = {
+                                "albumhash": ahash,
+                                "title": t_data.get("album"),
+                                "date": t_data.get("date"),
+                                "cover": f"/api/images/thumbnail/medium/{ahash}.webp",
+                            }
 
         artist["tracks"] = tracks
         artist["albums"] = list(album_dict.values())
@@ -182,7 +227,7 @@ class ArtistService:
         extra: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
-        Updates bio, info, and extra metadata for an artist in userdata.db.
+        Updates bio, info, and extra metadata for an artist in artistdata table.
         """
         itemhash = f"artist{artisthash}"
         with user_db() as conn:

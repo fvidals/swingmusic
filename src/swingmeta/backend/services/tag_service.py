@@ -155,12 +155,12 @@ class TagService:
                         params.append(album_str)
                         update_fields.append("albumhash = ?")
                         params.append(albumhash)
-                    if artists_list:
+                    if artist_str is not None:
                         update_fields.append("artists = ?")
-                        params.append(json.dumps(artists_list))
-                    if albumartists_list:
+                        params.append(artist_str)
+                    if albumartist_str is not None:
                         update_fields.append("albumartists = ?")
-                        params.append(json.dumps(albumartists_list))
+                        params.append(albumartist_str)
                     if "year" in new_tags and new_tags["year"]:
                         try:
                             year_int = int(str(new_tags["year"])[:4])
