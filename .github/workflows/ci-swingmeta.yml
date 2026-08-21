@@ -1,0 +1,66 @@
+name: SwingMeta CI (Tests & Build Check)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - 'feature/**'
+    paths:
+      - 'src/swingmeta/**'
+      - '.github/workflows/ci-swingmeta.yml'
+  pull_request:
+    branches:
+      - main
+      - master
+      - 'feature/**'
+    paths:
+      - 'src/swingmeta/**'
+  workflow_dispatch:
+
+jobs:
+  backend-tests:
+    name: Backend Unit Tests (Python 3.11)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: src/swingmeta/backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r src/swingmeta/backend/requirements.txt
+
+      - name: Run Backend Tests
+        working-directory: src/swingmeta/backend
+        run: |
+          python -m unittest discover -s tests -p "test_*.py"
+
+  frontend-build:
+    name: Frontend TypeScript & Vite Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: src/swingmeta/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src/swingmeta/frontend
+        run: npm ci
+
+      - name: Type check and build
+        working-directory: src/swingmeta/frontend
+        run: npm run build
