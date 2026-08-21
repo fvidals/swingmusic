@@ -182,9 +182,9 @@ class PlaylistService:
     @classmethod
     def get_existing_swing_playlists(cls) -> Dict[str, Dict[str, Any]]:
         """
-        Retrieves all playlists currently registered in SwingMusic's userdata.db.
+        Retrieves all playlists currently registered in SwingMusic's database.
         """
-        if not settings.userdata_db_path.exists():
+        if not settings.userdata_db_path.exists() and not settings.swingmusic_db_path.exists():
             return {}
 
         playlists = {}
@@ -223,6 +223,7 @@ class PlaylistService:
         Saves as WebP in images/playlists/ and updates playlist table.
         """
         import io
+        from datetime import datetime
         from PIL import Image
 
         try:
@@ -253,11 +254,17 @@ class PlaylistService:
         img_512.save(save_path, format="webp", quality=90)
 
         # Update playlist table
-        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        settings_dict = {
+            "has_gif": False,
+            "banner_pos": 50,
+            "square_img": True,
+            "pinned": False,
+        }
         with user_db() as conn:
             conn.execute(
-                "UPDATE playlist SET image = ?, last_updated = ? WHERE id = ?;",
-                (filename, now, playlist_id),
+                "UPDATE playlist SET image = ?, last_updated = ?, settings = ? WHERE id = ?;",
+                (filename, now_str, json.dumps(settings_dict), playlist_id),
             )
             conn.commit()
 
@@ -344,8 +351,10 @@ class PlaylistService:
         userid: int = 1,
     ) -> Dict[str, Any]:
         """
-        Creates or updates a playlist in SwingMusic's userdata.db using matched trackhashes from an M3U file.
+        Creates or updates a playlist in SwingMusic's database using matched trackhashes from an M3U file.
         """
+        from datetime import datetime
+
         p = Path(m3u_path)
         if not p.is_absolute() and settings.MUSIC_DIR.exists():
             p = settings.MUSIC_DIR / m3u_path
@@ -368,14 +377,19 @@ class PlaylistService:
             }
 
         playlist_name = custom_name.strip() if custom_name else p.stem
-        now = int(time.time())
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         trackhashes_json = json.dumps(matched_hashes)
-        settings_json = json.dumps({"has_image": False, "similar_artists": []})
+        settings_json = json.dumps({
+            "has_gif": False,
+            "banner_pos": 50,
+            "square_img": False,
+            "pinned": False,
+        })
 
         with user_db() as conn:
             # Check if playlist already exists by name
             existing = conn.execute(
-                "SELECT id FROM playlist WHERE name = ?;",
+                "SELECT id, image, settings FROM playlist WHERE name = ?;",
                 (playlist_name,),
             ).fetchone()
 
@@ -385,13 +399,13 @@ class PlaylistService:
                     UPDATE playlist
                     SET last_updated = ?, trackhashes = ?
                     WHERE id = ?;
-                """, (now, trackhashes_json, playlist_id))
+                """, (now_str, trackhashes_json, playlist_id))
                 action = "updated"
             else:
                 cursor = conn.execute("""
                     INSERT INTO playlist (name, last_updated, image, userid, settings, trackhashes, extra)
-                    VALUES (?, ?, NULL, ?, ?, ?, ?);
-                """, (playlist_name, now, userid, settings_json, trackhashes_json, json.dumps({})))
+                    VALUES (?, ?, NULL, ?, ?, ?, NULL);
+                """, (playlist_name, now_str, userid, settings_json, trackhashes_json))
                 playlist_id = cursor.lastrowid
                 action = "created"
 
