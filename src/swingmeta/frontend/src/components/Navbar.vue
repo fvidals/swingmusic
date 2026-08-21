@@ -52,7 +52,7 @@ onMounted(async () => {
           :class="route.path.startsWith('/tracks') ? 'bg-white/10 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'"
         >
           <Music class="w-4 h-4" />
-          <span>Tags & Faixas</span>
+          <span>Músicas</span>
         </router-link>
 
         <router-link
