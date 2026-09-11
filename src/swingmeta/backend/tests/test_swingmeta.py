@@ -393,9 +393,35 @@ class TestSwingMeta(unittest.TestCase):
         self.assertTrue(track_data["has_cover"])
         self.assertEqual(track_data["cover_url"], f"/api/images/thumbnail/medium/{new_hash}.webp")
 
+    def test_14_playlist_online_search_and_cover(self):
+        """Test playlist online search endpoint and cover image upload"""
+        # 1. Test search-online endpoint
+        res_search = self.client.get("/api/playlists/search-online?q=Rock+Classics")
+        self.assertEqual(res_search.status_code, 200)
+        data = res_search.get_json()
+        self.assertEqual(data["query"], "Rock Classics")
+        self.assertIsInstance(data["covers"], list)
+
+        # 2. Test uploading cover for created playlist (id=1 from test_07)
+        img = Image.new("RGB", (512, 512), color=(147, 51, 234))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64_str = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("utf-8")
+
+        res_cover = self.client.post("/api/playlists/1/cover", json={
+            "image_base64": b64_str,
+        })
+        self.assertEqual(res_cover.status_code, 200)
+        cover_data = res_cover.get_json()
+        self.assertTrue(cover_data["success"])
+        self.assertTrue(cover_data["image"].startswith("pl_1_"))
+        self.assertTrue((settings.playlist_images_dir / cover_data["image"]).exists())
+        self.assertTrue((settings.playlist_images_dir / cover_data["thumb"]).exists())
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

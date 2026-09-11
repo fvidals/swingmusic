@@ -61,6 +61,17 @@ export interface OnlineAlbumCoverCandidate {
   link?: string;
 }
 
+export interface OnlinePlaylistCoverCandidate {
+  provider: 'Spotify' | 'Deezer' | 'Apple Music' | string;
+  title: string;
+  creator?: string;
+  image_url: string;
+  thumbnail_url: string;
+  track_count?: number;
+  description?: string;
+  link?: string;
+}
+
 export interface FileTags {
   filepath: string;
   filename: string;

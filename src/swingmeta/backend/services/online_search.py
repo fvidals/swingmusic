@@ -319,3 +319,94 @@ class OnlineSearchService:
             "spotify_configured": bool(settings.SPOTIFY_CLIENT_ID and settings.SPOTIFY_CLIENT_SECRET),
         }
 
+    @staticmethod
+    def search_deezer_playlists(playlist_name: str) -> List[dict[str, Any]]:
+        """
+        Searches Deezer for playlist covers and metadata (zero-config).
+        """
+        results = []
+        try:
+            query = urllib.parse.quote(playlist_name.strip())
+            url = f"https://api.deezer.com/search/playlist?q={query}&limit=12"
+            headers = {"User-Agent": "SwingMeta/1.0", "Accept": "application/json"}
+            res = requests.get(url, headers=headers, timeout=10)
+            if res.status_code == 200:
+                data = res.json().get("data", [])
+                for item in data:
+                    img_url = item.get("picture_xl") or item.get("picture_big") or item.get("picture_medium")
+                    creator_data = item.get("creator") or item.get("user")
+                    creator_name = creator_data.get("name", "") if isinstance(creator_data, dict) else str(creator_data or "Deezer")
+                    if img_url:
+                        results.append({
+                            "provider": "Deezer",
+                            "title": item.get("title", ""),
+                            "creator": creator_name,
+                            "image_url": img_url,
+                            "thumbnail_url": item.get("picture_medium") or img_url,
+                            "track_count": item.get("nb_tracks", 0),
+                            "link": item.get("link", ""),
+                        })
+        except Exception as e:
+            log.warning(f"Erro na busca Deezer Playlist para '{playlist_name}': {e}")
+        return results
+
+    @classmethod
+    def search_spotify_playlists(cls, playlist_name: str) -> List[dict[str, Any]]:
+        """
+        Searches Spotify for curated and user playlist covers if credentials are set.
+        """
+        token = cls.get_spotify_token()
+        if not token:
+            return []
+
+        results = []
+        try:
+            query = urllib.parse.quote(playlist_name.strip())
+            url = f"https://api.spotify.com/v1/search?q={query}&type=playlist&limit=12"
+            headers = {"Authorization": f"Bearer {token}"}
+            res = requests.get(url, headers=headers, timeout=10)
+            if res.status_code == 200:
+                playlists = res.json().get("playlists", {}).get("items", [])
+                for item in playlists:
+                    if not item:
+                        continue
+                    images = item.get("images", []) or []
+                    img_url = images[0]["url"] if images else None
+                    thumb_url = images[-1]["url"] if images else None
+                    owner = item.get("owner", {})
+                    creator_name = owner.get("display_name", "Spotify") if isinstance(owner, dict) else "Spotify"
+                    if img_url:
+                        results.append({
+                            "provider": "Spotify",
+                            "id": item.get("id"),
+                            "title": item.get("name", ""),
+                            "creator": creator_name,
+                            "image_url": img_url,
+                            "thumbnail_url": thumb_url or img_url,
+                            "track_count": item.get("tracks", {}).get("total", 0),
+                            "description": item.get("description", ""),
+                            "link": item.get("external_urls", {}).get("spotify", ""),
+                        })
+        except Exception as e:
+            log.warning(f"Erro na busca Spotify Playlist para '{playlist_name}': {e}")
+        return results
+
+    @classmethod
+    def search_all_playlist_covers(cls, playlist_name: str) -> dict[str, Any]:
+        """
+        Aggregates playlist cover candidates from Spotify and Deezer.
+        """
+        deezer = cls.search_deezer_playlists(playlist_name)
+        spotify = cls.search_spotify_playlists(playlist_name)
+
+        all_covers = []
+        all_covers.extend(spotify)
+        all_covers.extend(deezer)
+
+        return {
+            "query": playlist_name.strip(),
+            "covers": all_covers,
+            "spotify_configured": bool(settings.SPOTIFY_CLIENT_ID and settings.SPOTIFY_CLIENT_SECRET),
+        }
+
+

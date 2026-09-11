@@ -16,10 +16,12 @@ import {
   Image as ImageIcon,
   Globe,
   Link as LinkIcon,
+  Sparkles,
 } from 'lucide-vue-next';
 import { api } from '../api/client';
 import type { M3UPlaylist } from '../types';
 import M3UDetailModal from '../components/M3UDetailModal.vue';
+import PlaylistCoverModal from '../components/PlaylistCoverModal.vue';
 
 const playlists = ref<M3UPlaylist[]>([]);
 const isLoading = ref(true);
@@ -27,10 +29,30 @@ const search = ref('');
 const filterStatus = ref<'all' | 'created' | 'not_created'>('all');
 const selectedM3UPath = ref<string | null>(null);
 
+const selectedCoverPlaylist = ref<M3UPlaylist | null>(null);
+const isCoverModalOpen = ref(false);
+
 const activeCreatingPath = ref<string | null>(null);
 const uploadingPlaylistId = ref<number | null>(null);
 const feedbackMsg = ref('');
 const errorMsg = ref('');
+
+function openCoverModal(p: M3UPlaylist) {
+  if (!p.is_created_in_swing || !p.swing_playlist?.id) {
+    if (confirm(`Para definir a capa, a playlist "${p.name}" precisa ser criada no SwingMusic primeiro. Deseja criá-la agora?`)) {
+      quickCreatePlaylist(p).then(() => {
+        const found = playlists.value.find(item => item.filepath === p.filepath);
+        if (found && found.is_created_in_swing && found.swing_playlist?.id) {
+          selectedCoverPlaylist.value = found;
+          isCoverModalOpen.value = true;
+        }
+      });
+    }
+    return;
+  }
+  selectedCoverPlaylist.value = p;
+  isCoverModalOpen.value = true;
+}
 
 const playlistFileInputs = ref<{ [key: number]: HTMLInputElement | null }>({});
 
@@ -268,28 +290,15 @@ onMounted(() => {
               <ListMusic v-else class="w-7 h-7 text-gray-500" />
             </div>
 
-            <!-- Upload Cover Trigger Overlay (if created in swingmusic) -->
+            <!-- Cover Trigger Overlay -->
             <button
-              v-if="p.is_created_in_swing && p.swing_playlist?.id"
-              @click="triggerCoverUpload(p.swing_playlist.id)"
-              :disabled="uploadingPlaylistId === p.swing_playlist.id"
+              @click="openCoverModal(p)"
               class="absolute inset-0 bg-black/70 opacity-0 group-hover/cover:opacity-100 rounded-2xl flex flex-col items-center justify-center text-white transition-opacity cursor-pointer"
-              title="Clique para alterar a capa desta playlist"
+              title="Buscar Foto Online / Alterar Capa desta playlist"
             >
-              <Loader2 v-if="uploadingPlaylistId === p.swing_playlist.id" class="w-4 h-4 animate-spin text-accent" />
-              <Upload v-else class="w-4 h-4 text-accent mb-0.5" />
+              <Sparkles class="w-4 h-4 text-accent mb-0.5" />
               <span class="text-[9px] font-bold">Capa</span>
             </button>
-
-            <!-- Hidden File Input for this playlist -->
-            <input
-              v-if="p.swing_playlist?.id"
-              :ref="el => { playlistFileInputs[p.swing_playlist!.id] = el as HTMLInputElement }"
-              type="file"
-              accept="image/*"
-              class="hidden"
-              @change="handleCoverUpload(p, $event)"
-            />
           </div>
 
           <!-- Info Text -->
@@ -333,27 +342,14 @@ onMounted(() => {
 
         <!-- Right: Actions -->
         <div class="flex items-center space-x-2 self-end md:self-center flex-shrink-0">
-          <!-- Upload Cover Action Button -->
+          <!-- Buscar Foto Online Button -->
           <button
-            v-if="p.is_created_in_swing && p.swing_playlist?.id"
-            @click="triggerCoverUpload(p.swing_playlist.id)"
-            :disabled="uploadingPlaylistId === p.swing_playlist.id"
-            class="px-3 py-2 bg-white/5 hover:bg-white/15 text-white text-xs font-semibold rounded-xl border border-white/10 flex items-center space-x-1.5 transition-all"
-            title="Upload de arquivo de capa (.jpg, .png, .webp)"
+            @click="openCoverModal(p)"
+            class="px-3.5 py-2 bg-accent/10 hover:bg-accent/20 text-accent font-semibold text-xs rounded-xl border border-accent/20 flex items-center space-x-1.5 transition-all"
+            title="Buscar fotos e capas de playlists online ou fazer upload"
           >
-            <Upload class="w-3.5 h-3.5 text-accent" />
-            <span>{{ uploadingPlaylistId === p.swing_playlist.id ? 'Enviando...' : 'Capa' }}</span>
-          </button>
-
-          <!-- Upload Cover via URL -->
-          <button
-            v-if="p.is_created_in_swing && p.swing_playlist?.id"
-            @click="handleCoverUrlPrompt(p)"
-            :disabled="uploadingPlaylistId === p.swing_playlist.id"
-            class="p-2 bg-white/5 hover:bg-white/15 text-white text-xs font-semibold rounded-xl border border-white/10 flex items-center transition-all"
-            title="Definir capa via URL direta da web"
-          >
-            <Globe class="w-3.5 h-3.5 text-accent" />
+            <Sparkles class="w-3.5 h-3.5" />
+            <span>Buscar Foto Online</span>
           </button>
 
           <button
@@ -402,6 +398,14 @@ onMounted(() => {
       :m3u-path="selectedM3UPath"
       @close="selectedM3UPath = null"
       @created="loadPlaylists"
+    />
+
+    <!-- Playlist Cover Modal -->
+    <PlaylistCoverModal
+      v-if="isCoverModalOpen && selectedCoverPlaylist"
+      :playlist="selectedCoverPlaylist"
+      @close="isCoverModalOpen = false; selectedCoverPlaylist = null"
+      @applied="loadPlaylists"
     />
   </div>
 </template>

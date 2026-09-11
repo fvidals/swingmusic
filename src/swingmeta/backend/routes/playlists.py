@@ -21,6 +21,25 @@ def get_playlists():
     })
 
 
+@playlists_bp.route("/search-online", methods=["GET"])
+def search_playlist_online():
+    """
+    Searches online streaming providers (Spotify, Deezer) specifically for playlist covers.
+    """
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify({
+            "query": "",
+            "covers": [],
+            "spotify_configured": bool(settings.SPOTIFY_CLIENT_ID and settings.SPOTIFY_CLIENT_SECRET),
+        })
+
+    from services.online_search import OnlineSearchService
+    results = OnlineSearchService.search_all_playlist_covers(q)
+    return jsonify(results)
+
+
+
 @playlists_bp.route("/detail", methods=["GET"])
 def get_playlist_detail():
     """

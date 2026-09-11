@@ -283,6 +283,17 @@ export const api = {
     return res.json();
   },
 
+  async searchPlaylistCovers(query: string): Promise<{
+    query: string;
+    covers: import('../types').OnlinePlaylistCoverCandidate[];
+    spotify_configured: boolean;
+  }> {
+    const q = new URLSearchParams({ q: query });
+    const res = await fetch(`${BASE_URL}/playlists/search-online?${q.toString()}`);
+    if (!res.ok) throw new Error('Falha ao buscar capas de playlists online');
+    return res.json();
+  },
+
   async uploadPlaylistCover(playlistId: number, options: File | { file?: File; imageUrl?: string }): Promise<any> {
     let res: Response;
     if (options instanceof File) {
