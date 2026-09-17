@@ -149,7 +149,13 @@ class Settings:
 
     @property
     def shared_artist_art_dir(self) -> Path:
-        self.SHARED_ARTIST_ART_DIR.mkdir(parents=True, exist_ok=True)
+        # Best-effort: the container may not have permission to create this
+        # path (e.g. no volume mounted there yet, or running as a non-root
+        # user). Callers must tolerate a directory that doesn't exist.
+        try:
+            self.SHARED_ARTIST_ART_DIR.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
         return self.SHARED_ARTIST_ART_DIR
 
     @property
