@@ -35,6 +35,10 @@ O SwingMeta resolve as limitações de edição de metadados do Swing Music, for
   - Sincronização automática com a tabela `track` do `swingmusic.db`.
 - 📊 **Diagnóstico de Volumes & Conexões:**
   - Painel de status em tempo real que valida os pontos de montagem (`swingmusic.db`, `userdata.db`, pasta de imagens e `/music`).
+- 🔗 **Pasta Compartilhada de Artes de Artistas (multi-servidor):**
+  - Mantém, de forma opcional (`SM_ARTISTARTPRIORITY`), uma pasta plana com as fotos de artistas em qualidade máxima (`{NomeDoArtista}.jpg`), atualizada automaticamente sempre que uma foto é definida no SwingMeta.
+  - Pensada para ser montada como volume somente leitura em outros servidores de mídia (ex: Navidrome via `ND_ARTISTIMAGEFOLDER` + `ND_ARTISTARTPRIORITY=image-folder,...`), sem acoplamento — o SwingMeta é o dono da pasta, o consumidor é livre.
+  - Botão de exportação em lote para migrar fotos já existentes no SwingMusic para a pasta compartilhada.
 
 ---
 
@@ -73,15 +77,36 @@ services:
     volumes:
       - ./config:/config    # Mesmo volume do Swing Music
       - ./music:/music      # Mesmo volume do Swing Music
+      - ./shared/artist-art:/shared/artist-art   # Pasta compartilhada de artes de artistas (leitura/escrita)
     environment:
       - SWING_CONFIG_DIR=/config
       - SWING_MUSIC_DIR=/music
       - SWINGMETA_PORT=1971
+      # Pasta compartilhada de fotos de artistas em alta qualidade (.jpg), consumida
+      # de forma somente leitura por outros servidores de mídia (ex: Navidrome)
+      - SM_ARTISTARTPRIORITY=/shared/artist-art
       # Opcional: Spotify Developer API
       - SPOTIFY_CLIENT_ID=
       - SPOTIFY_CLIENT_SECRET=
     depends_on:
       - swingmusic
+
+  # Opcional: Navidrome consumindo a mesma pasta de artes de artistas
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: navidrome
+    restart: unless-stopped
+    ports:
+      - "4533:4533"
+    volumes:
+      - ./navidrome-data:/data
+      - ./music:/music:ro
+      - ./shared/artist-art:/shared/artist-art:ro   # Mesma pasta do SwingMeta, somente leitura
+    environment:
+      - ND_MUSICFOLDER=/music
+      - ND_ARTISTIMAGEFOLDER=/shared/artist-art
+      # "image-folder" primeiro: a arte mantida pelo SwingMeta é a fonte primária
+      - ND_ARTISTARTPRIORITY=image-folder,artist.*,album/artist.*,external
 ```
 
 Suba os contêineres:

@@ -178,6 +178,56 @@ class TestSwingMeta(unittest.TestCase):
         self.assertEqual(detail_data["bio"], "Queen é uma lendária banda britânica de rock fundada em Londres em 1970.")
         self.assertTrue(detail_data["has_bio"])
 
+    def test_06b_shared_artist_art(self):
+        """Test the shared artist art mirror (SM_ARTISTARTPRIORITY) used by
+        third-party media servers like Navidrome's ArtistImageFolder."""
+        queen_hash = create_hash("Queen")
+        shared_dir = self.temp_dir / "shared-artist-art"
+
+        # Disabled by default: bulk export must fail cleanly
+        res_disabled = self.client.post("/api/artists/export-shared-art")
+        self.assertEqual(res_disabled.status_code, 400)
+
+        os.environ["SM_ARTISTARTPRIORITY"] = str(shared_dir)
+        try:
+            # Uploading a new artist photo should mirror it as a full-res JPEG
+            img = Image.new("RGB", (800, 800), color=(120, 10, 200))
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+
+            res = self.client.post(
+                f"/api/artists/{queen_hash}/image",
+                data={"file": (io.BytesIO(buf.getvalue()), "photo.png")},
+                content_type="multipart/form-data",
+            )
+            self.assertEqual(res.status_code, 200)
+
+            mirrored_path = shared_dir / "Queen.jpg"
+            self.assertTrue(mirrored_path.exists())
+            with Image.open(mirrored_path) as mirrored:
+                self.assertEqual(mirrored.size, (800, 800))  # no downscale
+
+            # Bulk export of the art already stored by SwingMusic (re-mirrors
+            # the resized 500x500 copy, since that's the only one it keeps)
+            res_export = self.client.post("/api/artists/export-shared-art")
+            self.assertEqual(res_export.status_code, 200)
+            export_data = res_export.get_json()
+            self.assertTrue(export_data["success"])
+            self.assertEqual(export_data["exported"], 1)
+
+            # Status endpoint should reflect the configured shared folder
+            res_status = self.client.get("/api/system/status")
+            status_data = res_status.get_json()
+            self.assertTrue(status_data["shared_artist_art"]["configured"])
+            self.assertEqual(status_data["shared_artist_art"]["image_count"], 1)
+
+            # Deleting the artist image should remove the mirror too
+            res_del = self.client.delete(f"/api/artists/{queen_hash}/image")
+            self.assertEqual(res_del.status_code, 200)
+            self.assertFalse(mirrored_path.exists())
+        finally:
+            del os.environ["SM_ARTISTARTPRIORITY"]
+
     def test_07_m3u_playlists(self):
         """Test M3U scanning, path resolving, and playlist creation in SwingMusic"""
         with get_db_connection(self.user_db_path) as conn:

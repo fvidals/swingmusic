@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Search, Filter, ArrowUpDown, Loader2, Users, AlertCircle, CheckCircle2, FileText } from 'lucide-vue-next';
+import { Search, Filter, ArrowUpDown, Loader2, Users, AlertCircle, CheckCircle2, FileText, FolderSync } from 'lucide-vue-next';
 import { api } from '../api/client';
 import type { Artist } from '../types';
 import ArtistCard from '../components/ArtistCard.vue';
@@ -20,6 +20,25 @@ const sortBy = ref('name'); // name, track_count, album_count
 const sortOrder = ref('asc'); // asc, desc
 
 let searchTimeout: any = null;
+
+const isExporting = ref(false);
+const exportFeedback = ref('');
+const exportError = ref('');
+
+async function exportSharedArtistArt() {
+  isExporting.value = true;
+  exportFeedback.value = '';
+  exportError.value = '';
+  try {
+    const res = await api.exportSharedArtistArt();
+    exportFeedback.value = `${res.exported} de ${res.total} artistas exportados para a pasta compartilhada.`;
+    setTimeout(() => { exportFeedback.value = ''; }, 5000);
+  } catch (err: any) {
+    exportError.value = err.message || 'Erro ao exportar artes para a pasta compartilhada.';
+  } finally {
+    isExporting.value = false;
+  }
+}
 
 async function loadArtists() {
   isLoading.value = true;
@@ -80,13 +99,35 @@ onMounted(() => {
         </p>
       </div>
 
-      <!-- Quick stats pill -->
-      <div class="flex items-center space-x-2 text-xs bg-black/40 px-4 py-2.5 rounded-2xl border border-white/5">
-        <span class="text-gray-400">Total listado:</span>
-        <span class="font-bold text-white text-sm">{{ totalArtists }}</span>
-        <span class="text-gray-500">•</span>
-        <span class="text-gray-400">Página {{ currentPage }} de {{ totalPages }}</span>
+      <div class="flex flex-col items-end space-y-2">
+        <!-- Quick stats pill -->
+        <div class="flex items-center space-x-2 text-xs bg-black/40 px-4 py-2.5 rounded-2xl border border-white/5">
+          <span class="text-gray-400">Total listado:</span>
+          <span class="font-bold text-white text-sm">{{ totalArtists }}</span>
+          <span class="text-gray-500">•</span>
+          <span class="text-gray-400">Página {{ currentPage }} de {{ totalPages }}</span>
+        </div>
+
+        <button
+          @click="exportSharedArtistArt"
+          :disabled="isExporting"
+          class="px-3.5 py-2 bg-white/5 hover:bg-white/10 text-white text-xs font-semibold rounded-xl border border-white/10 flex items-center space-x-2 transition-all disabled:opacity-50"
+          title="Exporta as fotos de artistas já salvas no SwingMusic (maior qualidade disponível) para a pasta compartilhada (SM_ARTISTARTPRIORITY), consumida por outros servidores de mídia como o Navidrome"
+        >
+          <Loader2 v-if="isExporting" class="w-3.5 h-3.5 animate-spin" />
+          <FolderSync v-else class="w-3.5 h-3.5" />
+          <span>Exportar Artes para Pasta Compartilhada</span>
+        </button>
       </div>
+    </div>
+
+    <div v-if="exportFeedback" class="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-2xl text-xs flex items-center space-x-2 shadow-lg">
+      <CheckCircle2 class="w-4 h-4 text-emerald-400 flex-shrink-0" />
+      <span>{{ exportFeedback }}</span>
+    </div>
+
+    <div v-if="exportError" class="p-4 bg-red-500/10 border border-red-500/20 text-red-300 rounded-2xl text-xs">
+      {{ exportError }}
     </div>
 
     <!-- Filter & Search Bar -->

@@ -3,6 +3,7 @@ import os
 import pathlib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 
 @dataclass
@@ -139,6 +140,22 @@ class Settings:
     @property
     def playlist_images_dir(self) -> Path:
         p = self.images_dir / "playlists"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def shared_artist_art_dir(self) -> Optional[Path]:
+        """
+        Optional read/write directory owned by SwingMeta that mirrors artist
+        photos in full quality as flat `{ArtistName}.jpg` files, for any
+        third-party media server (e.g. Navidrome's ArtistImageFolder) to
+        consume as a read-only volume. Disabled unless SM_ARTISTARTPRIORITY
+        is set.
+        """
+        raw = os.environ.get("SM_ARTISTARTPRIORITY", "").strip()
+        if not raw:
+            return None
+        p = Path(raw).resolve()
         p.mkdir(parents=True, exist_ok=True)
         return p
 

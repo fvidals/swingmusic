@@ -165,6 +165,14 @@ def get_system_status():
 
     mount_points = get_discovered_mount_points()
 
+    shared_art_dir = settings.shared_artist_art_dir
+    shared_artist_art = {
+        "configured": shared_art_dir is not None,
+        "path": str(shared_art_dir) if shared_art_dir else None,
+        "exists": shared_art_dir.exists() if shared_art_dir else False,
+        "image_count": len(list(shared_art_dir.glob("*.jpg"))) if shared_art_dir and shared_art_dir.exists() else 0,
+    }
+
     return jsonify({
         "status": "online",
         "version": "1.0.0",
@@ -182,6 +190,7 @@ def get_system_status():
             "music_dir_exists": music_ok,
         },
         "mount_points": mount_points,
+        "shared_artist_art": shared_artist_art,
         "stats": {
             "track_count": track_count,
             "artist_image_count": artist_image_count,

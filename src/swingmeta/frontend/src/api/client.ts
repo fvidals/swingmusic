@@ -88,6 +88,17 @@ export const api = {
     return res.json();
   },
 
+  async exportSharedArtistArt(): Promise<{ success: boolean; exported: number; skipped: number; failed: number; total: number }> {
+    const res = await fetch(`${BASE_URL}/artists/export-shared-art`, {
+      method: 'POST',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || 'Erro ao exportar artes para a pasta compartilhada');
+    }
+    return data;
+  },
+
   // Tracks & ID3 Tags
   async getTracks(params: {
     q?: string;

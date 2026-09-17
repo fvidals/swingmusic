@@ -216,6 +216,12 @@ export interface SystemStatus {
     music_dir_exists: boolean;
   };
   mount_points?: MountPointInfo[];
+  shared_artist_art?: {
+    configured: boolean;
+    path: string | null;
+    exists: boolean;
+    image_count: number;
+  };
   stats: {
     track_count: number;
     artist_image_count: number;
