@@ -76,7 +76,8 @@ async function quickCreatePlaylist(p: M3UPlaylist) {
 
   try {
     const res = await api.createPlaylist(p.filepath, p.name);
-    feedbackMsg.value = `Playlist "${p.name}" ${res.action === 'updated' ? 'sincronizada' : 'criada'} com sucesso no SwingMusic! (${res.imported_tracks} músicas)`;
+    const coverNote = res.cover_applied ? ' Capa local aplicada.' : '';
+    feedbackMsg.value = `Playlist "${p.name}" ${res.action === 'updated' ? 'sincronizada' : 'criada'} com sucesso no SwingMusic! (${res.imported_tracks} músicas)${coverNote}`;
     p.is_created_in_swing = true;
     await loadPlaylists();
     setTimeout(() => {
@@ -282,8 +283,8 @@ onMounted(() => {
               class="w-14 h-14 rounded-2xl overflow-hidden bg-surface-elevated flex items-center justify-center text-accent border border-white/10 shadow-inner"
             >
               <img
-                v-if="p.swing_playlist?.image_url"
-                :src="p.swing_playlist.image_url"
+                v-if="p.swing_playlist?.image_url || p.local_cover_url"
+                :src="p.swing_playlist?.image_url || p.local_cover_url!"
                 :alt="p.name"
                 class="w-full h-full object-cover"
               />
@@ -316,6 +317,13 @@ onMounted(() => {
                 class="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20"
               >
                 Com Capa
+              </span>
+              <span
+                v-else-if="p.has_local_cover"
+                class="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/20"
+                title="Capa .jpg encontrada na pasta da playlist. Será aplicada ao sincronizar."
+              >
+                Capa Local Detectada
               </span>
             </div>
 

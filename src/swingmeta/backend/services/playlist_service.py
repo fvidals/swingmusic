@@ -4,6 +4,7 @@ import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 
 from config import settings
 from database import swing_db, user_db
@@ -13,6 +14,41 @@ log = logging.getLogger(__name__)
 
 
 class PlaylistService:
+    @staticmethod
+    def find_local_cover(m3u_path: Path) -> Optional[Path]:
+        """
+        Looks for a cover image with the same base name as the M3U file in the
+        same directory (e.g. MyPlaylist.m3u -> MyPlaylist.jpg). Used as the
+        source-of-truth cover that gets auto-applied on sync.
+        """
+        for ext in (".jpg", ".JPG"):
+            candidate = m3u_path.parent / f"{m3u_path.stem}{ext}"
+            if candidate.is_file():
+                return candidate
+        return None
+
+    @classmethod
+    def resolve_m3u_path(cls, m3u_path: str) -> Path:
+        p = Path(m3u_path)
+        if not p.is_absolute() and settings.MUSIC_DIR.exists():
+            p = settings.MUSIC_DIR / m3u_path
+        return p
+
+    @classmethod
+    def resolve_local_cover_path(cls, m3u_path: str) -> Optional[Path]:
+        """
+        Resolves the local cover for an M3U path, ensuring it stays within
+        MUSIC_DIR to prevent arbitrary file reads via the serving route.
+        """
+        cover = cls.find_local_cover(cls.resolve_m3u_path(m3u_path))
+        if not cover:
+            return None
+        try:
+            cover.resolve().relative_to(settings.MUSIC_DIR.resolve())
+        except ValueError:
+            return None
+        return cover
+
     @staticmethod
     def find_m3u_files() -> List[Path]:
         """
@@ -310,6 +346,7 @@ class PlaylistService:
 
             playlist_name = file_path.stem
             is_created = playlist_name in existing_playlists
+            local_cover = cls.find_local_cover(file_path)
 
             result.append({
                 "name": playlist_name,
@@ -321,6 +358,8 @@ class PlaylistService:
                 "match_rate": round((len(matched_hashes) / len(parsed) * 100), 1) if parsed else 0,
                 "is_created_in_swing": is_created,
                 "swing_playlist": existing_playlists.get(playlist_name),
+                "has_local_cover": local_cover is not None,
+                "local_cover_url": f"/api/playlists/local-cover?path={quote(str(file_path))}" if local_cover else None,
             })
 
         return result
@@ -330,9 +369,7 @@ class PlaylistService:
         """
         Returns full detailed track breakdown for a specific M3U file.
         """
-        p = Path(m3u_path)
-        if not p.is_absolute() and settings.MUSIC_DIR.exists():
-            p = settings.MUSIC_DIR / m3u_path
+        p = cls.resolve_m3u_path(m3u_path)
 
         if not p.exists():
             return None
@@ -369,9 +406,7 @@ class PlaylistService:
         """
         from datetime import datetime
 
-        p = Path(m3u_path)
-        if not p.is_absolute() and settings.MUSIC_DIR.exists():
-            p = settings.MUSIC_DIR / m3u_path
+        p = cls.resolve_m3u_path(m3u_path)
 
         if not p.exists():
             return {"success": False, "error": f"Arquivo M3U não encontrado: {m3u_path}"}
@@ -425,6 +460,15 @@ class PlaylistService:
 
             conn.commit()
 
+        cover_applied = False
+        local_cover = cls.find_local_cover(p)
+        if local_cover:
+            try:
+                cover_result = cls.upload_playlist_cover(playlist_id, local_cover.read_bytes())
+                cover_applied = bool(cover_result.get("success"))
+            except Exception as e:
+                log.warning(f"Erro ao aplicar capa local da playlist {playlist_name}: {e}")
+
         return {
             "success": True,
             "action": action,
@@ -432,4 +476,5 @@ class PlaylistService:
             "name": playlist_name,
             "total_tracks": len(parsed),
             "imported_tracks": len(matched_hashes),
+            "cover_applied": cover_applied,
         }

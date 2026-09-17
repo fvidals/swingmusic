@@ -107,6 +107,8 @@ export interface M3UPlaylist {
   matched_tracks: number;
   match_rate: number;
   is_created_in_swing: boolean;
+  has_local_cover: boolean;
+  local_cover_url?: string | null;
   swing_playlist?: {
     id: number;
     name: string;

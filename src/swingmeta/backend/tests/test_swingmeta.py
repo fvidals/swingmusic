@@ -228,6 +228,49 @@ class TestSwingMeta(unittest.TestCase):
         res2 = self.client.get("/api/playlists")
         self.assertTrue(res2.get_json()["playlists"][0]["is_created_in_swing"])
 
+    def test_07b_m3u_local_cover(self):
+        """Test local .jpg cover detection next to an M3U file and auto-apply on sync"""
+        with get_db_connection(self.user_db_path) as conn:
+            conn.execute("DELETE FROM playlist WHERE name = 'Local Cover Mix';")
+            conn.commit()
+
+        playlists_dir = settings.MUSIC_DIR / "Playlists"
+        playlists_dir.mkdir(parents=True, exist_ok=True)
+        m3u_file = playlists_dir / "Local Cover Mix.m3u"
+        m3u_file.write_text("""#EXTM3U
+#EXTINF:354,Queen - Bohemian Rhapsody
+../bohemian.mp3
+""", encoding="utf-8")
+
+        cover_file = playlists_dir / "Local Cover Mix.jpg"
+        img = Image.new("RGB", (300, 300), color=(10, 20, 30))
+        img.save(cover_file, format="jpeg")
+
+        # Listing should detect the local cover before the playlist is created
+        res = self.client.get("/api/playlists")
+        entry = next(p for p in res.get_json()["playlists"] if p["name"] == "Local Cover Mix")
+        self.assertTrue(entry["has_local_cover"])
+        self.assertIsNotNone(entry["local_cover_url"])
+        self.assertFalse(entry["is_created_in_swing"])
+
+        # The local cover should be servable directly
+        res_img = self.client.get(entry["local_cover_url"])
+        self.assertEqual(res_img.status_code, 200)
+
+        # Sync should create the playlist and auto-apply the local cover
+        res_create = self.client.post("/api/playlists/create", json={
+            "filepath": str(m3u_file),
+            "name": "Local Cover Mix",
+        })
+        create_data = res_create.get_json()
+        self.assertTrue(create_data["success"])
+        self.assertTrue(create_data["cover_applied"])
+
+        res2 = self.client.get("/api/playlists")
+        entry2 = next(p for p in res2.get_json()["playlists"] if p["name"] == "Local Cover Mix")
+        self.assertTrue(entry2["is_created_in_swing"])
+        self.assertTrue(entry2["swing_playlist"]["has_image"])
+
     def test_08_swingmusic_customization(self):
         """Test listing users, uploading user avatar, and updating assets"""
         # 1. Test listing users

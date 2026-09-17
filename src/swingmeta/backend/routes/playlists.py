@@ -1,5 +1,5 @@
 import logging
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_from_directory
 
 from config import settings
 from database import user_db
@@ -38,6 +38,25 @@ def search_playlist_online():
     results = OnlineSearchService.search_all_playlist_covers(q)
     return jsonify(results)
 
+
+
+@playlists_bp.route("/local-cover", methods=["GET"])
+def get_local_cover():
+    """
+    Serves the local .jpg cover image found alongside an M3U playlist file
+    (same folder, same base name), used for previewing the cover before sync.
+    """
+    filepath = request.args.get("path", "").strip()
+    if not filepath:
+        return jsonify({"error": "Caminho não fornecido"}), 400
+
+    cover_path = PlaylistService.resolve_local_cover_path(filepath)
+    if not cover_path:
+        return jsonify({"error": "Capa local não encontrada"}), 404
+
+    response = send_from_directory(str(cover_path.parent), cover_path.name, max_age=0)
+    response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
 
 
 @playlists_bp.route("/detail", methods=["GET"])
