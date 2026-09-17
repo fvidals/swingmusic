@@ -35,29 +35,15 @@ class PlaylistService:
         return p
 
     @classmethod
-    def resolve_local_cover_path(cls, m3u_path: str) -> Optional[Path]:
+    def get_candidate_music_dirs(cls) -> List[Path]:
         """
-        Resolves the local cover for an M3U path, ensuring it stays within
-        MUSIC_DIR to prevent arbitrary file reads via the serving route.
-        """
-        cover = cls.find_local_cover(cls.resolve_m3u_path(m3u_path))
-        if not cover:
-            return None
-        try:
-            cover.resolve().relative_to(settings.MUSIC_DIR.resolve())
-        except ValueError:
-            return None
-        return cover
-
-    @staticmethod
-    def find_m3u_files() -> List[Path]:
-        """
-        Finds all .m3u and .m3u8 files in MUSIC_DIR and all discovered music mount points.
-        Prioritizes the 'Playlists' subdirectories.
+        Returns MUSIC_DIR plus any additional top-level music mount points
+        discovered from the `track.folder` column in swingmusic.db (the
+        library root can live outside MUSIC_DIR depending on how volumes
+        are mounted).
         """
         candidate_dirs = [settings.MUSIC_DIR]
 
-        # Also discover folders from track table
         if settings.swingmusic_db_path.exists():
             try:
                 with swing_db() as conn:
@@ -76,6 +62,36 @@ class PlaylistService:
                                     candidate_dirs.append(top_p)
             except Exception:
                 pass
+
+        return candidate_dirs
+
+    @classmethod
+    def resolve_local_cover_path(cls, m3u_path: str) -> Optional[Path]:
+        """
+        Resolves the local cover for an M3U path, ensuring it stays within one
+        of the known music mount points to prevent arbitrary file reads via
+        the serving route.
+        """
+        cover = cls.find_local_cover(cls.resolve_m3u_path(m3u_path))
+        if not cover:
+            return None
+
+        resolved_cover = cover.resolve()
+        for base in cls.get_candidate_music_dirs():
+            try:
+                resolved_cover.relative_to(base.resolve())
+                return cover
+            except ValueError:
+                continue
+        return None
+
+    @classmethod
+    def find_m3u_files(cls) -> List[Path]:
+        """
+        Finds all .m3u and .m3u8 files in MUSIC_DIR and all discovered music mount points.
+        Prioritizes the 'Playlists' subdirectories.
+        """
+        candidate_dirs = cls.get_candidate_music_dirs()
 
         m3u_files = []
         seen_paths = set()

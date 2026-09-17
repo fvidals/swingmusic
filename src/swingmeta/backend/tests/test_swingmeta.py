@@ -271,6 +271,38 @@ class TestSwingMeta(unittest.TestCase):
         self.assertTrue(entry2["is_created_in_swing"])
         self.assertTrue(entry2["swing_playlist"]["has_image"])
 
+    def test_07c_m3u_local_cover_outside_music_dir(self):
+        """Regression: local cover must be servable even when the M3U lives in a
+        mount point outside MUSIC_DIR, discovered only via track.folder in the DB
+        (e.g. a separate volume like /downtify instead of /music)."""
+        external_dir = self.temp_dir / "downtify" / "p26s"
+        external_dir.mkdir(parents=True, exist_ok=True)
+
+        with get_db_connection(self.swing_db_path) as conn:
+            conn.execute("""
+                INSERT OR IGNORE INTO track (album, albumartists, albumhash, artists, bitrate, disc, duration, filepath, folder, title, track, trackhash, last_mod, date, lastplayed, playcount, playduration)
+                VALUES ('Outro Album', '[]', 'albumhash999', '[]', 320000, 1, 200, ?, ?, 'Outra Faixa', 1, 'trackhash999', 1700000000, 1975, 0, 0, 0);
+            """, (str(external_dir / "outra.mp3"), str(external_dir)))
+            conn.commit()
+
+        m3u_file = external_dir / "p26s.m3u"
+        m3u_file.write_text("""#EXTM3U
+#EXTINF:200,Outra Faixa
+outra.mp3
+""", encoding="utf-8")
+
+        cover_file = external_dir / "p26s.jpg"
+        img = Image.new("RGB", (300, 300), color=(50, 60, 70))
+        img.save(cover_file, format="jpeg")
+
+        res = self.client.get("/api/playlists")
+        entry = next(p for p in res.get_json()["playlists"] if p["name"] == "p26s")
+        self.assertTrue(entry["has_local_cover"])
+        self.assertIsNotNone(entry["local_cover_url"])
+
+        res_img = self.client.get(entry["local_cover_url"])
+        self.assertEqual(res_img.status_code, 200)
+
     def test_08_swingmusic_customization(self):
         """Test listing users, uploading user avatar, and updating assets"""
         # 1. Test listing users
