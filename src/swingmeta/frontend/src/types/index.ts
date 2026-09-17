@@ -217,9 +217,8 @@ export interface SystemStatus {
   };
   mount_points?: MountPointInfo[];
   shared_artist_art?: {
-    configured: boolean;
-    path: string | null;
-    exists: boolean;
+    path: string;
+    is_mounted: boolean;
     image_count: number;
   };
   stats: {

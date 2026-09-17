@@ -102,10 +102,9 @@ def upload_artist_image(artisthash: str):
     try:
         result = ImageService.process_and_save_artist_image(image_bytes, artisthash)
 
-        if SharedArtistArtService.is_enabled():
-            artist = ArtistService.get_artist_by_hash(artisthash)
-            if artist:
-                SharedArtistArtService.save(artist["name"], image_bytes)
+        artist = ArtistService.get_artist_by_hash(artisthash)
+        if artist:
+            SharedArtistArtService.save(artist["name"], image_bytes)
 
         return jsonify(result)
     except Exception as e:
@@ -118,10 +117,9 @@ def delete_artist_image(artisthash: str):
     """
     Deletes the artist's custom image files.
     """
-    if SharedArtistArtService.is_enabled():
-        artist = ArtistService.get_artist_by_hash(artisthash)
-        if artist:
-            SharedArtistArtService.delete(artist["name"])
+    artist = ArtistService.get_artist_by_hash(artisthash)
+    if artist:
+        SharedArtistArtService.delete(artist["name"])
 
     success = ImageService.delete_artist_image(artisthash)
     return jsonify({"success": success})
@@ -131,18 +129,12 @@ def delete_artist_image(artisthash: str):
 def export_shared_art():
     """
     Bulk-exports the artist photos already stored by SwingMusic into the
-    shared artist art directory (SM_ARTISTARTPRIORITY), for third-party
-    media servers consuming that folder to pick up artists added before
-    this feature existed.
+    shared artist art directory (settings.shared_artist_art_dir), for
+    third-party media servers consuming that folder to pick up artists
+    added before this feature existed.
     """
-    if not SharedArtistArtService.is_enabled():
-        return jsonify({"error": "SM_ARTISTARTPRIORITY não está configurado."}), 400
-
     artists = ArtistService.get_all_artists()
     result = SharedArtistArtService.export_existing_artists(artists)
-    if not result.get("success"):
-        return jsonify(result), 400
-
     return jsonify(result)
 
 

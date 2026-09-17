@@ -112,7 +112,7 @@ onMounted(() => {
           @click="exportSharedArtistArt"
           :disabled="isExporting"
           class="px-3.5 py-2 bg-white/5 hover:bg-white/10 text-white text-xs font-semibold rounded-xl border border-white/10 flex items-center space-x-2 transition-all disabled:opacity-50"
-          title="Exporta as fotos de artistas já salvas no SwingMusic (maior qualidade disponível) para a pasta compartilhada (SM_ARTISTARTPRIORITY), consumida por outros servidores de mídia como o Navidrome"
+          title="Exporta as fotos de artistas já salvas no SwingMusic (maior qualidade disponível) para a pasta compartilhada (/shared/artist-art), consumida por outros servidores de mídia como o Navidrome"
         >
           <Loader2 v-if="isExporting" class="w-3.5 h-3.5 animate-spin" />
           <FolderSync v-else class="w-3.5 h-3.5" />

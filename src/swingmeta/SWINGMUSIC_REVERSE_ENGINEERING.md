@@ -166,12 +166,13 @@ Durante a análise, dois pontos nativos do backend do SwingMusic foram corrigido
 
 ## 6. 🔗 Interoperabilidade: Pasta Compartilhada de Artes de Artistas
 
-Para permitir que outros servidores de mídia (ex: Navidrome) reaproveitem as fotos de artistas mantidas pelo SwingMeta sem acoplamento direto entre os dois projetos, existe uma pasta plana opcional, de propriedade do SwingMeta, configurável via `SM_ARTISTARTPRIORITY` (`services/shared_artist_art.py`).
+Para permitir que outros servidores de mídia (ex: Navidrome) reaproveitem as fotos de artistas mantidas pelo SwingMeta sem acoplamento direto entre os dois projetos, existe uma pasta plana, de propriedade do SwingMeta, em **caminho fixo `/shared/artist-art`** (`config.py -> Settings.SHARED_ARTIST_ART_DIR`, `services/shared_artist_art.py`) — não há variável de ambiente para configurar; basta montar um volume Docker nesse caminho para que a pasta seja de fato compartilhada.
 
 - **Formato:** `{NomeDoArtista}.jpg` (nome exato do artista, com caracteres inválidos de sistema de arquivos — `\ / : * ? " < > |` — substituídos por `_`), sempre convertido para JPEG qualidade 95, **sem redimensionar** (mantém a maior resolução disponível na origem).
 - **Quando é atualizada:** a cada upload/aplicação de foto via `POST /api/artists/<hash>/image`, antes do SwingMusic fazer seu próprio crop+resize destrutivo para WebP 500/256/128px. Também é removida ao deletar a foto do artista.
 - **Exportação em lote:** `POST /api/artists/export-shared-art` converte as fotos já existentes (o `.webp` 500x500 de `artist_images_lg`, teto de qualidade disponível para fotos anteriores a essa feature) para `.jpg` na pasta compartilhada.
-- **Consumo pelo Navidrome (referência, não é responsabilidade do SwingMeta):** monte o mesmo diretório como somente leitura e configure `ND_ARTISTIMAGEFOLDER=<mesmo caminho>` + inclua `image-folder` em `ND_ARTISTARTPRIORITY`. O Navidrome casa arquivos pelo nome-base (case-insensitive) igual ao nome do artista ou ao MusicBrainz ID — como o SwingMusic não versiona MBID, o casamento é sempre por nome.
+- **Diagnóstico:** `GET /api/system/status -> shared_artist_art.is_mounted` usa `os.path.ismount()` para diferenciar um volume Docker real montado nesse caminho de uma pasta local efêmera criada dentro do container (quando ninguém montou nada ali).
+- **Consumo pelo Navidrome (referência, não é responsabilidade do SwingMeta):** monte o mesmo diretório do host como somente leitura no container do Navidrome e configure `ND_ARTISTIMAGEFOLDER=/shared/artist-art` + inclua `image-folder` em `ND_ARTISTARTPRIORITY`. O Navidrome casa arquivos pelo nome-base (case-insensitive) igual ao nome do artista ou ao MusicBrainz ID — como o SwingMusic não versiona MBID, o casamento é sempre por nome.
 - **Se for necessário reaproveitar esse padrão para outro tipo de mídia (álbuns, etc.), mantenha o serviço agnóstico** — não referencie "Navidrome" fora de comentários/documentação, já que a pasta pode ser consumida por qualquer servidor compatível com essa convenção.
 
 ## 7. 📌 Guia de Manutenção e Extensões Futuras

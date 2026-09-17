@@ -179,16 +179,14 @@ class TestSwingMeta(unittest.TestCase):
         self.assertTrue(detail_data["has_bio"])
 
     def test_06b_shared_artist_art(self):
-        """Test the shared artist art mirror (SM_ARTISTARTPRIORITY) used by
-        third-party media servers like Navidrome's ArtistImageFolder."""
+        """Test the shared artist art mirror (fixed settings.SHARED_ARTIST_ART_DIR,
+        default /shared/artist-art) used by third-party media servers like
+        Navidrome's ArtistImageFolder."""
         queen_hash = create_hash("Queen")
         shared_dir = self.temp_dir / "shared-artist-art"
 
-        # Disabled by default: bulk export must fail cleanly
-        res_disabled = self.client.post("/api/artists/export-shared-art")
-        self.assertEqual(res_disabled.status_code, 400)
-
-        os.environ["SM_ARTISTARTPRIORITY"] = str(shared_dir)
+        original_dir = settings.SHARED_ARTIST_ART_DIR
+        settings.SHARED_ARTIST_ART_DIR = shared_dir
         try:
             # Uploading a new artist photo should mirror it as a full-res JPEG
             img = Image.new("RGB", (800, 800), color=(120, 10, 200))
@@ -215,10 +213,10 @@ class TestSwingMeta(unittest.TestCase):
             self.assertTrue(export_data["success"])
             self.assertEqual(export_data["exported"], 1)
 
-            # Status endpoint should reflect the configured shared folder
+            # Status endpoint should reflect the shared folder
             res_status = self.client.get("/api/system/status")
             status_data = res_status.get_json()
-            self.assertTrue(status_data["shared_artist_art"]["configured"])
+            self.assertEqual(status_data["shared_artist_art"]["path"], str(shared_dir))
             self.assertEqual(status_data["shared_artist_art"]["image_count"], 1)
 
             # Deleting the artist image should remove the mirror too
@@ -226,7 +224,7 @@ class TestSwingMeta(unittest.TestCase):
             self.assertEqual(res_del.status_code, 200)
             self.assertFalse(mirrored_path.exists())
         finally:
-            del os.environ["SM_ARTISTARTPRIORITY"]
+            settings.SHARED_ARTIST_ART_DIR = original_dir
 
     def test_07_m3u_playlists(self):
         """Test M3U scanning, path resolving, and playlist creation in SwingMusic"""

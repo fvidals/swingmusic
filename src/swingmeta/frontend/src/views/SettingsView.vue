@@ -322,15 +322,15 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Shared Artist Art Folder (SM_ARTISTARTPRIORITY) -->
+    <!-- Shared Artist Art Folder -->
     <div class="bg-surface rounded-3xl p-6 sm:p-8 border border-white/5 space-y-4">
       <div class="flex items-center space-x-2">
         <Share2 class="w-5 h-5 text-accent" />
         <div>
           <h2 class="text-lg font-bold text-white">Pasta Compartilhada de Artes de Artistas</h2>
           <p class="text-xs text-gray-400">
-            Espelha as fotos de artistas em qualidade máxima (.jpg) para um volume que outros servidores de mídia
-            podem consumir de forma somente leitura (ex: Navidrome via <code>ArtistImageFolder</code>).
+            Espelha as fotos de artistas em qualidade máxima (.jpg) em <code>/shared/artist-art</code>, para outros
+            servidores de mídia montarem como volume somente leitura (ex: Navidrome via <code>ArtistImageFolder</code>).
           </p>
         </div>
       </div>
@@ -341,18 +341,18 @@ onMounted(() => {
         </div>
         <div class="flex-1 min-w-0">
           <div class="flex items-center justify-between">
-            <span class="font-semibold text-sm text-white">SM_ARTISTARTPRIORITY</span>
+            <span class="font-semibold text-sm text-white">/shared/artist-art</span>
             <span
               class="px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center space-x-1"
-              :class="status.shared_artist_art.configured && status.shared_artist_art.exists ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'"
+              :class="status.shared_artist_art.is_mounted ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'"
             >
-              <CheckCircle2 v-if="status.shared_artist_art.configured && status.shared_artist_art.exists" class="w-3 h-3" />
+              <CheckCircle2 v-if="status.shared_artist_art.is_mounted" class="w-3 h-3" />
               <AlertTriangle v-else class="w-3 h-3" />
-              <span>{{ status.shared_artist_art.configured ? (status.shared_artist_art.exists ? 'Ativo' : 'Configurado, pasta ausente') : 'Não Configurado' }}</span>
+              <span>{{ status.shared_artist_art.is_mounted ? 'Volume Montado' : 'Pasta Local (sem volume montado)' }}</span>
             </span>
           </div>
-          <p class="text-xs text-gray-400 font-mono truncate mt-1">{{ status.shared_artist_art.path || 'Defina a variável de ambiente SM_ARTISTARTPRIORITY' }}</p>
-          <p v-if="status.shared_artist_art.configured" class="text-xs text-gray-500 mt-0.5">{{ status.shared_artist_art.image_count }} artes exportadas</p>
+          <p class="text-xs text-gray-400 font-mono truncate mt-1">{{ status.shared_artist_art.path }}</p>
+          <p class="text-xs text-gray-500 mt-0.5">{{ status.shared_artist_art.image_count }} artes exportadas</p>
         </div>
       </div>
     </div>

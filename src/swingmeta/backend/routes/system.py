@@ -167,10 +167,11 @@ def get_system_status():
 
     shared_art_dir = settings.shared_artist_art_dir
     shared_artist_art = {
-        "configured": shared_art_dir is not None,
-        "path": str(shared_art_dir) if shared_art_dir else None,
-        "exists": shared_art_dir.exists() if shared_art_dir else False,
-        "image_count": len(list(shared_art_dir.glob("*.jpg"))) if shared_art_dir and shared_art_dir.exists() else 0,
+        "path": str(shared_art_dir),
+        # True only when a real volume is mounted there; false means it's just
+        # an ephemeral folder inside the container (nothing to share yet).
+        "is_mounted": os.path.ismount(str(shared_art_dir)),
+        "image_count": len(list(shared_art_dir.glob("*.jpg"))),
     }
 
     return jsonify({

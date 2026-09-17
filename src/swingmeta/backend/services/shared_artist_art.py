@@ -18,7 +18,8 @@ class SharedArtistArtService:
     named `{ArtistName}.jpg`, for any third-party media server to mount
     read-only and consume as its own artist image source (e.g. Navidrome's
     ArtistImageFolder, which matches files by artist name or MusicBrainz ID).
-    Enabled only when SM_ARTISTARTPRIORITY is configured.
+    Always writes to the fixed path settings.shared_artist_art_dir
+    (/shared/artist-art); mount that path as a volume to actually share it.
     """
 
     @staticmethod
@@ -27,19 +28,15 @@ class SharedArtistArtService:
         return f"{safe_name}.jpg"
 
     @classmethod
-    def is_enabled(cls) -> bool:
-        return settings.shared_artist_art_dir is not None
-
-    @classmethod
     def save(cls, artist_name: str, image_bytes: bytes) -> Optional[str]:
         """
         Saves the given image bytes as a full-quality JPEG named after the
         artist, without downscaling, so the shared folder always holds the
         best quality available at upload time. Returns the saved filename,
-        or None if the shared directory isn't configured.
+        or None on failure.
         """
         target_dir = settings.shared_artist_art_dir
-        if target_dir is None or not artist_name:
+        if not artist_name:
             return None
 
         try:
@@ -81,9 +78,6 @@ class SharedArtistArtService:
         "export existing art" action for artists uploaded before this
         feature existed.
         """
-        if settings.shared_artist_art_dir is None:
-            return {"success": False, "error": "SM_ARTISTARTPRIORITY não está configurado."}
-
         exported = 0
         skipped = 0
         failed = 0
@@ -120,11 +114,10 @@ class SharedArtistArtService:
 
     @classmethod
     def delete(cls, artist_name: str) -> None:
-        target_dir = settings.shared_artist_art_dir
-        if target_dir is None or not artist_name:
+        if not artist_name:
             return
 
-        file_path = target_dir / cls._filename_for(artist_name)
+        file_path = settings.shared_artist_art_dir / cls._filename_for(artist_name)
         if file_path.exists():
             try:
                 file_path.unlink()
